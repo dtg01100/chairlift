@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,8 +80,8 @@ func TestExportedActionsSendTheirOwnCommandWord(t *testing.T) {
 			wantArgs: []string{ubluehelper.CommandDXDisable},
 		},
 		{
-			name:     "Restart",
-			call:     Restart,
+			name:     "Restart with the helper installed",
+			call:     func(ctx context.Context) error { return Restart(ctx, true) },
 			wantArgs: []string{ubluehelper.CommandRestart},
 		},
 		{
@@ -209,6 +210,98 @@ func TestSwitchDriverRejectionNeverReachesTheHelper(t *testing.T) {
 	}
 	if _, statErr := os.Stat(path); statErr == nil {
 		t.Error("rejected driver produced a journal entry; it must be refused before the helper is invoked")
+	}
+}
+
+// stubUnprivileged replaces the unprivileged runner for one test and
+// restores the production runner afterwards.
+func stubUnprivileged(t *testing.T, fn func(ctx context.Context, name string, args ...string) ([]byte, error)) {
+	t.Helper()
+	original := runUnprivileged
+	runUnprivileged = fn
+	t.Cleanup(func() { runUnprivileged = original })
+}
+
+// With the helper installed, Restart keeps its privileged route and never
+// touches the unprivileged logind path.
+func TestRestartWithTheHelperKeepsTheHelperRoute(t *testing.T) {
+	stubUnprivileged(t, func(context.Context, string, ...string) ([]byte, error) {
+		t.Error("Restart(helperInstalled=true) reached the unprivileged logind runner")
+		return nil, nil
+	})
+
+	entry := journalledArgv(t, func(ctx context.Context) error { return Restart(ctx, true) })
+	want := []string{pkexec.Command, HelperPath, ubluehelper.CommandRestart, "--dry-run"}
+	if !reflect.DeepEqual(entry.WouldRun, want) {
+		t.Fatalf("assembled argv = %v, want %v", entry.WouldRun, want)
+	}
+}
+
+// Without the helper — Dakota — Restart goes through systemd-logind as the
+// invoking user: `systemctl reboot`, which org.freedesktop.login1.reboot
+// allows for an active local session with no ChairLift policy and no
+// pkexec. Under dry-run it is journalled and nothing runs.
+func TestRestartWithoutTheHelperPreviewsLogindUnderDryRun(t *testing.T) {
+	stubUnprivileged(t, func(context.Context, string, ...string) ([]byte, error) {
+		t.Error("dry-run Restart ran the unprivileged logind runner")
+		return nil, nil
+	})
+
+	entry := journalledArgv(t, func(ctx context.Context) error { return Restart(ctx, false) })
+	if want := []string{"systemctl", "reboot"}; !reflect.DeepEqual(entry.WouldRun, want) {
+		t.Fatalf("assembled argv = %v, want %v", entry.WouldRun, want)
+	}
+	if entry.Action != ubluehelper.CommandRestart {
+		t.Errorf("journalled action = %q, want %q", entry.Action, ubluehelper.CommandRestart)
+	}
+	if entry.Suppressed != journal.SuppressedDryRun {
+		t.Errorf("suppressed = %q, want %q", entry.Suppressed, journal.SuppressedDryRun)
+	}
+	for _, arg := range entry.WouldRun {
+		if arg == pkexec.Command || arg == HelperPath {
+			t.Errorf("logind restart argv %v names %q; it must not escalate", entry.WouldRun, arg)
+		}
+	}
+}
+
+// A live logind restart runs exactly `systemctl reboot` once, journals it as
+// run, and reports a refusal (another session logged in, an inhibitor, a
+// dismissed prompt) with what systemctl said.
+func TestRestartWithoutTheHelperRunsSystemctlReboot(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "journal.jsonl")
+	t.Setenv(journal.PathEnv, path)
+	journal.Reset()
+	t.Cleanup(journal.Reset)
+	dryrun.Set(false)
+
+	var calls [][]string
+	stubUnprivileged(t, func(_ context.Context, name string, args ...string) ([]byte, error) {
+		calls = append(calls, append([]string{name}, args...))
+		return nil, nil
+	})
+
+	if err := Restart(context.Background(), false); err != nil {
+		t.Fatalf("Restart(false) error = %v, want nil", err)
+	}
+	if want := [][]string{{"systemctl", "reboot"}}; !reflect.DeepEqual(calls, want) {
+		t.Fatalf("runner calls = %v, want %v", calls, want)
+	}
+	entries := readJournal(t, path)
+	if len(entries) != 1 || entries[0].Suppressed != journal.SuppressedNone ||
+		!reflect.DeepEqual(entries[0].WouldRun, []string{"systemctl", "reboot"}) {
+		t.Fatalf("journal = %+v, want one run entry for systemctl reboot", entries)
+	}
+
+	stubUnprivileged(t, func(context.Context, string, ...string) ([]byte, error) {
+		return []byte("Operation inhibited by \"gnome-shell\"\n"), errors.New("exit status 1")
+	})
+	err := Restart(context.Background(), false)
+	var ublueErr *Error
+	if !errors.As(err, &ublueErr) {
+		t.Fatalf("Restart(false) failure type = %T (%v), want *ublue.Error", err, err)
+	}
+	if !strings.Contains(err.Error(), "Operation inhibited") {
+		t.Errorf("Restart(false) error = %q, want it to carry systemctl's reason", err)
 	}
 }
 

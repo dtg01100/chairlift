@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/projectbluefin/chairlift/internal/capability"
 	"github.com/projectbluefin/chairlift/internal/distrobox"
 	"github.com/projectbluefin/chairlift/internal/dryrun"
 	"github.com/projectbluefin/chairlift/internal/flatpak"
@@ -69,17 +70,24 @@ func (uh *UserHome) buildResetGroup(page *adw.PreferencesPage) {
 	powerwashRow.AddSuffix(&powerwashBtn.Widget)
 	group.Add(&powerwashRow.Widget)
 
-	resetRow := adw.NewActionRow()
-	resetPresentation := pageview.FactoryResetRow()
-	resetRow.SetTitle(resetPresentation.Title)
-	resetRow.SetSubtitle(resetPresentation.Subtitle)
-	resetBtn := gtk.NewButtonWithLabel(factoryResetButtonLabel)
-	resetBtn.SetValign(gtk.AlignCenterValue)
-	resetBtn.AddCssClass("destructive-action")
-	resetClickedCb := func(gtk.Button) { uh.onFactoryResetClicked(resetBtn, resetRow) }
-	resetBtn.ConnectClicked(&resetClickedCb)
-	resetRow.AddSuffix(&resetBtn.Widget)
-	group.Add(&resetRow.Widget)
+	// Factory Reset is chairlift-ublue-helper's factory-reset action; a
+	// host without the helper (Dakota) keeps Powerwash and loses only this
+	// row. Help explains why it is missing.
+	if uh.capabilities.SupportsControl(capability.FactoryResetControl) {
+		resetRow := adw.NewActionRow()
+		resetPresentation := pageview.FactoryResetRow()
+		resetRow.SetTitle(resetPresentation.Title)
+		resetRow.SetSubtitle(resetPresentation.Subtitle)
+		resetBtn := gtk.NewButtonWithLabel(factoryResetButtonLabel)
+		resetBtn.SetValign(gtk.AlignCenterValue)
+		resetBtn.AddCssClass("destructive-action")
+		resetClickedCb := func(gtk.Button) { uh.onFactoryResetClicked(resetBtn, resetRow) }
+		resetBtn.ConnectClicked(&resetClickedCb)
+		resetRow.AddSuffix(&resetBtn.Widget)
+		group.Add(&resetRow.Widget)
+	} else {
+		log.Printf("views: factory reset hidden (%s not installed)", ublue.HelperPath)
+	}
 
 	page.Add(group)
 	log.Printf("views: reset group built")

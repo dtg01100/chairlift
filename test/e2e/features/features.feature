@@ -144,7 +144,7 @@ Feature: Features page — Developer tools, Gaming, and the Custom Command Menu
     And I do not see "Gaming apps"
     And the application log does not contain "views: bluefin groups built"
 
-  @env.CHAIRLIFT_CAPABILITIES=flatpak,brew,podman,bootc-stage @stub.features-gaming-none
+  @env.CHAIRLIFT_CAPABILITIES=flatpak,brew,podman,bootc-stage,ublue-helper @stub.features-gaming-none
   Scenario: The image-descriptor capability floors the Developer and Gaming groups
     Given ChairLift is running
     When I open the "Features" page

@@ -152,7 +152,7 @@ are not new routes. A target route never creates a second copy of the owner.
 | U7 | Refresh Homebrew metadata | Updates / Sources | `updateHomebrew` | `homebrew.Update` |
 | U8 | Discover untrusted taps; confirm trust | Updates / Sources | `trustTap` (confirmation in `confirmTrustTap`) | `homebrew.TrustPackages`; per-user, no pkexec |
 | U9 | Change release channel | Updates / Settings | `onChannelToggled` | `ublue.SwitchChannel`; helper resolves image from channel word |
-| U10 | Restart after update | Updates | `UpdateShell.StartRestart` | `ublue.Restart`; separate from staging/rollback |
+| U10 | Restart after update | Updates | `UpdateShell.StartRestart` | `ublue.Restart`: helper `restart` when `capability.UblueHelper`, else unprivileged `systemctl reboot` via logind; separate from staging/rollback |
 | U11 | Toggle four update sources and post-update maintenance preference | Updates / Settings | `internal/settings` store, bound by `Window.buildPreferences` | Updates GSettings preferences; source policy/capability still floors execution |
 | A1 | Launch configured software catalog (`app_id`, default Bazaar) | Apps / Installed apps | `launchApp` | External application launcher; installs belong to that catalog |
 | A2 | List/uninstall user Flatpaks | Apps / Installed apps | `loadFlatpakApplications` user-scope row action | `internal/flatpak` |

@@ -8,6 +8,7 @@ import (
 	"github.com/projectbluefin/chairlift/internal/bootc"
 	"github.com/projectbluefin/chairlift/internal/homebrew"
 	"github.com/projectbluefin/chairlift/internal/imageinfo"
+	"github.com/projectbluefin/chairlift/internal/ublue"
 )
 
 // Every test in this file drives DetectWith with a fake Probe, so the suite
@@ -56,6 +57,7 @@ var (
 		bootc.StageScriptPath,
 		imageinfo.DescriptorPath,
 		homebrew.FallbackExecutable(),
+		ublue.HelperPath,
 	}
 )
 
@@ -106,6 +108,26 @@ func TestDetectWithResolvesEveryCapability(t *testing.T) {
 			name:  "ublue image descriptor present",
 			probe: fakeHost(nil, []string{imageinfo.DescriptorPath}),
 			want:  Set{ImageDescriptor: true},
+		},
+		{
+			name:  "ublue privileged helper installed",
+			probe: fakeHost(nil, []string{ublue.HelperPath}),
+			want:  Set{UblueHelper: true},
+		},
+		{
+			// A directory at the fixed path is not a helper pkexec can
+			// run; only a regular file counts.
+			name: "ublue privileged helper path is a directory",
+			probe: Probe{
+				LookPath: fakeHost(nil, nil).LookPath,
+				Stat: func(name string) (os.FileInfo, error) {
+					if name == ublue.HelperPath {
+						return dirFileInfo{statFileInfo{name: name}}, nil
+					}
+					return nil, os.ErrNotExist
+				},
+			},
+			want: Set{},
 		},
 		{
 			name:  "homebrew on PATH",
@@ -161,16 +183,17 @@ func TestDetectWithResolvesEveryCapability(t *testing.T) {
 // drifting apart from production resolution.
 func TestProbeFromPresentAndNamesIsTheE2EHostShapeSeam(t *testing.T) {
 	// A representative Bluefin host shape: flatpak, brew, the bootc
-	// stage script, and the image descriptor.
+	// stage script, the image descriptor, and the ublue helper.
 	want := Set{
 		Flatpak:         true,
 		Homebrew:        true,
 		BootcStage:      true,
 		ImageDescriptor: true,
+		UblueHelper:     true,
 	}
 
-	present := ProbeFromPresent(Flatpak, Homebrew, BootcStage, ImageDescriptor)
-	names := ProbeFromNames("flatpak", "brew", "bootc-stage", "image-descriptor")
+	present := ProbeFromPresent(Flatpak, Homebrew, BootcStage, ImageDescriptor, UblueHelper)
+	names := ProbeFromNames("flatpak", "brew", "bootc-stage", "image-descriptor", "ublue-helper")
 
 	for _, probe := range []Probe{present, names} {
 		got := DetectWith(probe)
@@ -210,13 +233,21 @@ func TestEveryRequiredCapabilityHasAProbe(t *testing.T) {
 
 	checked := 0
 	for _, entry := range Prerequisites() {
-		for _, c := range entry.AnyOf {
+		for _, c := range entry.Capabilities() {
 			checked++
 			if !provided[c] {
 				t.Errorf(
 					"prerequisite %s/%s requires %q, which no probe resolves",
 					entry.Page, entry.Group, c,
 				)
+			}
+		}
+	}
+	for _, entry := range ControlPrerequisites() {
+		for _, c := range entry.AllOf {
+			checked++
+			if !provided[c] {
+				t.Errorf("control %q requires %q, which no probe resolves", entry.Control, c)
 			}
 		}
 	}
@@ -227,7 +258,9 @@ func TestEveryRequiredCapabilityHasAProbe(t *testing.T) {
 
 // TestSupportsAnyOneCapabilityOfItsGroup derives its cases from the
 // prerequisites table, so every entry — including each capability of a
-// multi-capability group — is covered without restating the table here.
+// multi-capability group — is covered without restating the table here. A
+// group needs every one of its AllOf capabilities and, when it lists any,
+// one of its AnyOf alternatives.
 func TestSupportsAnyOneCapabilityOfItsGroup(t *testing.T) {
 	entries := Prerequisites()
 	if len(entries) == 0 {
@@ -237,7 +270,7 @@ func TestSupportsAnyOneCapabilityOfItsGroup(t *testing.T) {
 	gated := 0
 	for _, entry := range entries {
 		t.Run(entry.Page+"/"+entry.Group, func(t *testing.T) {
-			if len(entry.AnyOf) == 0 {
+			if !entry.Gated() {
 				// No host prerequisite: resolution cannot hide it.
 				if !(Set{}).Supports(entry.Page, entry.Group) {
 					t.Errorf(
@@ -257,11 +290,43 @@ func TestSupportsAnyOneCapabilityOfItsGroup(t *testing.T) {
 				)
 			}
 
-			// Any single one of the group's capabilities is enough.
+			base := func() Set {
+				set := Set{}
+				for _, c := range entry.AllOf {
+					set[c] = true
+				}
+				return set
+			}
+
+			if len(entry.AnyOf) == 0 {
+				if !base().Supports(entry.Page, entry.Group) {
+					t.Errorf("Supports(%q, %q) = false with every AllOf capability present, want true", entry.Page, entry.Group)
+				}
+			} else if len(entry.AllOf) > 0 && base().Supports(entry.Page, entry.Group) {
+				t.Errorf("Supports(%q, %q) = true with no AnyOf alternative present, want false", entry.Page, entry.Group)
+			}
+
+			// Any single one of the group's alternatives is enough, beside
+			// the capabilities it always needs.
 			for _, c := range entry.AnyOf {
-				if !(Set{c: true}).Supports(entry.Page, entry.Group) {
+				set := base()
+				set[c] = true
+				if !set.Supports(entry.Page, entry.Group) {
 					t.Errorf(
 						"Supports(%q, %q) = false with %q present, want true",
+						entry.Page, entry.Group, c,
+					)
+				}
+			}
+
+			// Every AllOf capability is necessary: a fully capable host
+			// missing only that one cannot back the group.
+			for _, c := range entry.AllOf {
+				set := fullSet()
+				set[c] = false
+				if set.Supports(entry.Page, entry.Group) {
+					t.Errorf(
+						"Supports(%q, %q) = true without %q, want false",
 						entry.Page, entry.Group, c,
 					)
 				}
@@ -271,7 +336,7 @@ func TestSupportsAnyOneCapabilityOfItsGroup(t *testing.T) {
 			// capabilities.
 			others := Set{}
 			for _, c := range providedCapabilities() {
-				if !containsCapability(entry.AnyOf, c) {
+				if !containsCapability(entry.Capabilities(), c) {
 					others[c] = true
 				}
 			}
@@ -286,6 +351,113 @@ func TestSupportsAnyOneCapabilityOfItsGroup(t *testing.T) {
 
 	if gated == 0 {
 		t.Fatal("no prerequisite names a capability: the gate would be vacuous")
+	}
+}
+
+// TestHelperActionGroupsNeedTheUblueHelper pins the groups whose every
+// control calls chairlift-ublue-helper, and the siblings that must survive
+// without it. Dakota ships the image descriptor, the stage script, Flatpak,
+// and Homebrew, but not the helper: on that host a helper-only group must be
+// hidden rather than rendered and then failed.
+func TestHelperActionGroupsNeedTheUblueHelper(t *testing.T) {
+	withoutHelper := fullSet()
+	withoutHelper[UblueHelper] = false
+
+	for _, pair := range [][2]string{
+		{"updates_page", "automatic_updates_group"},
+		{"updates_page", "channel_group"},
+		{"features_page", "dx_group"},
+	} {
+		if withoutHelper.Supports(pair[0], pair[1]) {
+			t.Errorf("Supports(%q, %q) = true without the ublue helper, want false", pair[0], pair[1])
+		}
+		if !fullSet().Supports(pair[0], pair[1]) {
+			t.Errorf("Supports(%q, %q) = false on a fully capable host, want true", pair[0], pair[1])
+		}
+	}
+
+	// The image descriptor is still required where it was: the helper alone
+	// on a non-ublue host has no channel or developer groups to act on.
+	withoutDescriptor := fullSet()
+	withoutDescriptor[ImageDescriptor] = false
+	for _, pair := range [][2]string{{"updates_page", "channel_group"}, {"features_page", "dx_group"}} {
+		if withoutDescriptor.Supports(pair[0], pair[1]) {
+			t.Errorf("Supports(%q, %q) = true without the image descriptor, want false", pair[0], pair[1])
+		}
+	}
+
+	// Mixed groups keep rendering: their helper-backed controls are
+	// floored individually through SupportsControl.
+	for _, pair := range [][2]string{
+		{"updates_page", "bootc_updates_group"},
+		{"maintenance_page", "reset_group"},
+		{"features_page", "gaming_group"},
+	} {
+		if !withoutHelper.Supports(pair[0], pair[1]) {
+			t.Errorf("Supports(%q, %q) = false without the ublue helper, want true: only a control inside it needs the helper", pair[0], pair[1])
+		}
+	}
+}
+
+// TestSupportsControlFloorsHelperActionsInsideMixedGroups covers the
+// control-level floor: Roll Back and Factory Reset share a group with
+// controls that need no helper, so only they disappear.
+func TestSupportsControlFloorsHelperActionsInsideMixedGroups(t *testing.T) {
+	withoutHelper := fullSet()
+	withoutHelper[UblueHelper] = false
+
+	for _, control := range []Control{RollbackControl, FactoryResetControl} {
+		if withoutHelper.SupportsControl(control) {
+			t.Errorf("SupportsControl(%q) = true without the ublue helper, want false", control)
+		}
+		if !(Set{UblueHelper: true}).SupportsControl(control) {
+			t.Errorf("SupportsControl(%q) = false with the ublue helper, want true", control)
+		}
+		if (Set(nil)).SupportsControl(control) {
+			t.Errorf("SupportsControl(%q) = true on a nil set, want false", control)
+		}
+	}
+
+	// An undeclared control is unclassified, and like an unclassified group
+	// it is not silently hidden.
+	if !(Set{}).SupportsControl(Control("not-a-control")) {
+		t.Error("SupportsControl(unknown) = false, want true for an unclassified control")
+	}
+}
+
+// TestControlPrerequisitesSitInsideClassifiedGroups holds the control table
+// to the group table: a control names the group that renders it, and that
+// group must be classified and not already require what the control does —
+// otherwise the control entry is dead weight.
+func TestControlPrerequisitesSitInsideClassifiedGroups(t *testing.T) {
+	entries := ControlPrerequisites()
+	if len(entries) == 0 {
+		t.Fatal("ControlPrerequisites() is empty: the gate would be vacuous")
+	}
+	seen := make(map[Control]bool)
+	for _, entry := range entries {
+		if seen[entry.Control] {
+			t.Errorf("control %q is listed twice", entry.Control)
+		}
+		seen[entry.Control] = true
+		group, classified := Required(entry.Page, entry.Group)
+		if !classified {
+			t.Errorf("control %q names unclassified group %s/%s", entry.Control, entry.Page, entry.Group)
+			continue
+		}
+		if len(entry.AllOf) == 0 {
+			t.Errorf("control %q requires nothing; it needs no entry", entry.Control)
+		}
+		for _, c := range entry.AllOf {
+			if containsCapability(group.AllOf, c) {
+				t.Errorf("control %q requires %q, which its group %s/%s already requires", entry.Control, c, entry.Page, entry.Group)
+			}
+		}
+	}
+	for _, control := range []Control{RollbackControl, FactoryResetControl} {
+		if !seen[control] {
+			t.Errorf("control %q has no ControlPrerequisites entry", control)
+		}
 	}
 }
 
@@ -399,14 +571,18 @@ func TestRequiredReturnsACopy(t *testing.T) {
 	if !classified {
 		t.Fatalf("Required(%q, %q) reported the table entry as unclassified", entry.Page, entry.Group)
 	}
-	if len(required) != len(entry.AnyOf) {
-		t.Fatalf("Required(%q, %q) returned %d capabilities, want %d", entry.Page, entry.Group, len(required), len(entry.AnyOf))
+	if len(required.Capabilities()) != len(entry.Capabilities()) {
+		t.Fatalf("Required(%q, %q) returned %d capabilities, want %d", entry.Page, entry.Group, len(required.Capabilities()), len(entry.Capabilities()))
 	}
 
-	required[0] = Capability("clobbered")
+	for _, list := range [][]Capability{required.AllOf, required.AnyOf} {
+		for i := range list {
+			list[i] = Capability("clobbered")
+		}
+	}
 	again, _ := Required(entry.Page, entry.Group)
-	if again[0] == Capability("clobbered") {
-		t.Error("mutating the slice Required returned changed the resolved table")
+	if containsCapability(again.Capabilities(), Capability("clobbered")) {
+		t.Error("mutating the slices Required returned changed the resolved table")
 	}
 }
 
@@ -444,7 +620,7 @@ func TestPrerequisitesAreOrderedUniquelyAndCopied(t *testing.T) {
 		want := entry.AnyOf[0]
 		entries[i].AnyOf = entries[i].AnyOf[:0]
 		again, _ := Required(entry.Page, entry.Group)
-		if len(again) == 0 || again[0] != want {
+		if len(again.AnyOf) == 0 || again.AnyOf[0] != want {
 			t.Fatalf("truncating the slice Prerequisites returned changed %s/%s", entry.Page, entry.Group)
 		}
 		break
@@ -470,7 +646,7 @@ func firstGatedPrerequisite(t *testing.T) Prerequisite {
 	t.Helper()
 
 	for _, entry := range Prerequisites() {
-		if len(entry.AnyOf) > 0 {
+		if entry.Gated() {
 			return entry
 		}
 	}
@@ -487,3 +663,10 @@ func containsCapability(capabilities []Capability, c Capability) bool {
 	}
 	return false
 }
+
+// dirFileInfo reports a directory, so a probe can place one at a path a
+// capability expects to be a regular file.
+type dirFileInfo struct{ statFileInfo }
+
+func (dirFileInfo) IsDir() bool       { return true }
+func (dirFileInfo) Mode() os.FileMode { return os.ModeDir | 0o755 }

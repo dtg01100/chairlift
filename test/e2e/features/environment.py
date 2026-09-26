@@ -64,7 +64,7 @@ DEFAULT_IMAGE_INFO = {
 DEFAULT_STUBS = {
     "CHAIRLIFT_AUTO_UPDATES": "enabled,active",
     "CHAIRLIFT_GPU_VENDORS": "0x8086,0x10de",
-    "CHAIRLIFT_CAPABILITIES": "image-descriptor,flatpak,brew,podman,bootc-stage",
+    "CHAIRLIFT_CAPABILITIES": "image-descriptor,flatpak,brew,podman,bootc-stage,ublue-helper",
 }
 
 

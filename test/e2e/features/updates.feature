@@ -1,4 +1,4 @@
-@updates @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,brew,podman
+@updates @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,brew,podman,ublue-helper
 Feature: Updates
   The Updates destination is the status-first update shell: one status line,
   one primary action, and a row per update source. Flatpak and Homebrew are

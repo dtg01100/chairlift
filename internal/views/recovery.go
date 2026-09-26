@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/projectbluefin/chairlift/internal/bootc"
+	"github.com/projectbluefin/chairlift/internal/capability"
 	"github.com/projectbluefin/chairlift/internal/dryrun"
 	"github.com/projectbluefin/chairlift/internal/ublue"
 	"github.com/projectbluefin/chairlift/internal/views/actionmsg"
@@ -96,27 +97,33 @@ func (uh *UserHome) buildRecoveryPage() {
 
 // buildRecoveryRollbackGroup builds the bootc Roll Back row on the Recovery
 // page. It is built hidden and revealed asynchronously, so a fresh install
-// never offers a rollback to nothing.
+// never offers a rollback to nothing. A host without chairlift-ublue-helper
+// gets no Roll Back row at all — the button would only fail after
+// authenticating — while the unprivileged Published versions list stays.
 func (uh *UserHome) buildRecoveryRollbackGroup(page *adw.PreferencesPage) {
-	// bootc Roll Back returns to the deployment bootc records as the
-	// rollback target. Hidden until that deployment is confirmed to exist.
-	uh.bootcRollbackRow = adw.NewActionRow()
-	rollbackPresentation := pageview.BootcRollbackRow("", "")
-	uh.bootcRollbackRow.SetTitle(rollbackPresentation.Title)
-	uh.bootcRollbackRow.SetSubtitle(rollbackPresentation.Subtitle)
-	uh.bootcRollbackBtn = gtk.NewButtonWithLabel("Roll Back")
-	uh.bootcRollbackBtn.SetValign(gtk.AlignCenterValue)
-	rollbackClickedCb := func(gtk.Button) {
-		uh.onBootcRollbackClicked()
-	}
-	uh.bootcRollbackBtn.ConnectClicked(&rollbackClickedCb)
-	uh.bootcRollbackRow.AddSuffix(&uh.bootcRollbackBtn.Widget)
-	uh.bootcRollbackRow.SetVisible(false)
-
 	group := adw.NewPreferencesGroup()
 	group.SetTitle("Roll Back")
 	group.SetDescription("Return to the previous system version if an update went badly")
-	group.Add(&uh.bootcRollbackRow.Widget)
+
+	if uh.capabilities.SupportsControl(capability.RollbackControl) {
+		// bootc Roll Back returns to the deployment bootc records as the
+		// rollback target. Hidden until that deployment is confirmed to exist.
+		uh.bootcRollbackRow = adw.NewActionRow()
+		rollbackPresentation := pageview.BootcRollbackRow("", "")
+		uh.bootcRollbackRow.SetTitle(rollbackPresentation.Title)
+		uh.bootcRollbackRow.SetSubtitle(rollbackPresentation.Subtitle)
+		uh.bootcRollbackBtn = gtk.NewButtonWithLabel("Roll Back")
+		uh.bootcRollbackBtn.SetValign(gtk.AlignCenterValue)
+		rollbackClickedCb := func(gtk.Button) {
+			uh.onBootcRollbackClicked()
+		}
+		uh.bootcRollbackBtn.ConnectClicked(&rollbackClickedCb)
+		uh.bootcRollbackRow.AddSuffix(&uh.bootcRollbackBtn.Widget)
+		uh.bootcRollbackRow.SetVisible(false)
+		group.Add(&uh.bootcRollbackRow.Widget)
+	} else {
+		log.Printf("views: roll back hidden (%s not installed)", ublue.HelperPath)
+	}
 	// The published-versions list is a bootc image concept: it reads the
 	// registry the booted image comes from.
 	if uh.groupEnabled("updates_page", "bootc_updates_group") {

@@ -164,7 +164,7 @@ Feature: Apps destination
     And the "Applications" list under "Packages from Homebrew" says "Could not read the list"
     And the "Applications" list under "Installed applications" says "2 installed"
 
-  @config.apps-bundles @stub.apps-brew @stub.apps-flatpak @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak
+  @config.apps-bundles @stub.apps-brew @stub.apps-flatpak @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,ublue-helper
   Scenario: A host without Homebrew shows no Homebrew groups
     Given ChairLift is running
     When I open the "Apps" page

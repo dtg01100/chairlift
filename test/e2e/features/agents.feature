@@ -10,7 +10,7 @@ Feature: Agents page
 
   # ------------------------------------------------------------ visibility
 
-  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,podman,bootc-stage
+  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,podman,bootc-stage,ublue-helper
   Scenario: Agents is hidden on a host without Homebrew
     Given ChairLift is running
     Then the sidebar has no "Agents" row

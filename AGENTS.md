@@ -162,7 +162,14 @@ An agent must not break these:
   action selection. ChairLift ships no passwordless PolicyKit rules; normal
   administrator authentication applies. Homebrew tap trust (`brew trust`) is
   deliberately per-user and does **not** use pkexec, and neither does gaming
-  mode, whose components are all user-scope Flatpaks. Do not add arbitrary
+  mode, whose components are all user-scope Flatpaks, nor the restart
+  fallback on a host without `chairlift-ublue-helper` (Dakota): there
+  `ublue.Restart` runs `systemctl reboot` as the invoking user, which
+  systemd-logind's stock `org.freedesktop.login1.reboot` policy already
+  allows an active local session — no ChairLift policy, no pkexec. Every
+  control that *would* call the helper is floored on
+  `capability.UblueHelper` (see the capability-floor invariant), so a host
+  without the helper is never shown one. Do not add arbitrary
   privileged command execution, broaden what pkexec runs, or route new
   mutations around the fixed helper/policy pair.
 - **Neither an image reference nor a username crosses the ublue pkexec
@@ -230,10 +237,15 @@ An agent must not break these:
   staging path. Adding a
   `bootc upgrade` route to `chairlift-ublue-helper` would break both the
   staging-ownership invariant below and the system-integration package's
-  fixed-path contract. The run's only privileged surface of its own is
+  fixed-path contract. The run's only session-ending surface of its own is
   `restart`: `updateflow.ActionRestart` is set when the snapshot reaches
   `PhaseRestartRequired`, `updatepresent` renders it as a destructive
-  "Restart now" button, and `UpdateShell.StartRestart` calls `ublue.Restart`.
+  "Restart now" button, and `UpdateShell.StartRestart` calls
+  `ublue.Restart(ctx, helperInstalled)` with the window's
+  `capabilities.Has(capability.UblueHelper)`: the helper's `restart`
+  subcommand where the helper is installed (unchanged), otherwise an
+  unprivileged `systemctl reboot` through systemd-logind, dry-run-gated and
+  journalled as `restart` like a helper call.
   That phase is reached only when a source genuinely reports a restart is
   required — the stage script is idempotent and exits 0 on an already-current
   system, so a successful OS source is not by itself evidence anything
@@ -409,10 +421,20 @@ An agent must not break these:
   its view and builds a hidden shell. Capability is a floor — configuration may
   subtract from it and never add to it — so its composed predicate is the one
   `navigation.VisibleItems` and the view builders share; do not reintroduce a
-  second availability probe in a view. The prerequisites table is total over
+  second availability probe in a view. A group needs every capability in its
+  prerequisite's `AllOf` and one of its `AnyOf`. `UblueHelper` (a regular file
+  at `ublue.HelperPath`) is required by the groups whose every control calls
+  the helper — `automatic_updates_group`, `channel_group` (the early-updates
+  and graphics-driver switches), `dx_group` — and a helper-backed row inside a
+  group whose siblings need no helper asks `Set.SupportsControl` instead:
+  `RollbackControl` (Recovery's Roll Back beside Published versions) and
+  `FactoryResetControl` (beside Powerwash). Help's "Why is something
+  missing?" names the helper for both kinds. The prerequisites table is total over
   `config.SchemaGroups` in both directions, enforced by
   `internal/installcheck`'s `TestCapabilityPrerequisitesMatchConfigSchema`, so
-  a new config group is classified in the same change that adds it.
+  a new config group is classified in the same change that adds it; a new
+  helper-backed control in a mixed group gets a `Control` constant and a
+  `controlPrerequisites` entry in the same change.
 - **Setup filters choices, not whole pages.** `internal/firstrun` snapshots
   the shared composed capability floor for at most three optional tasks:
   Appearance, Apps, and Update Preferences. Each choice retains its original

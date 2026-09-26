@@ -26,8 +26,8 @@
 // subtract from the capability set and never add to it; Compose implements
 // that direction, and a nil configuration predicate composes to false
 // everywhere, which is the repository's fail-closed rule for a caller holding
-// no configuration. Within the table the same rule holds — a group whose
-// capabilities are all absent is unsupported — with one deliberate exception:
+// no configuration. Within the table the same rule holds — a group missing
+// any capability it requires is unsupported — with one deliberate exception:
 // an *unclassified* pair is reported as supported, so that a missing entry
 // cannot silently hide a group at runtime. That exception is only safe because
 // the table's totality is enforced against the configuration schema by a gate;
@@ -48,6 +48,7 @@ import (
 	"github.com/projectbluefin/chairlift/internal/bootc"
 	"github.com/projectbluefin/chairlift/internal/homebrew"
 	"github.com/projectbluefin/chairlift/internal/imageinfo"
+	"github.com/projectbluefin/chairlift/internal/ublue"
 )
 
 // Capability names one host facility a group's backing tool or asset
@@ -73,6 +74,13 @@ const (
 	// prerequisite of every Bluefin-family group, which has nothing to render
 	// on a host that runs a different OS.
 	ImageDescriptor Capability = "image-descriptor"
+	// UblueHelper is the fixed-path privileged helper internal/ublue invokes
+	// through pkexec (ublue.HelperPath). It is a separate capability from
+	// the image descriptor because the two ship separately: Dakota carries
+	// the descriptor and the bootc stage script but not this helper, so a
+	// control that calls it would render and then fail. Only a regular file
+	// counts — pkexec cannot run a directory.
+	UblueHelper Capability = "ublue-helper"
 )
 
 // pathCapabilities pairs every capability provided by an executable with the
@@ -95,6 +103,7 @@ var assetCapabilities = []struct {
 }{
 	{BootcStage, func(p Probe) bool { return exists(p, bootc.StageScriptPath) }},
 	{ImageDescriptor, func(p Probe) bool { return exists(p, imageinfo.DescriptorPath) }},
+	{UblueHelper, func(p Probe) bool { return regularFile(p, ublue.HelperPath) }},
 	{Homebrew, func(p Probe) bool {
 		if p.LookPath == nil || p.Stat == nil {
 			return false
@@ -158,26 +167,98 @@ func (s Set) Has(c Capability) bool {
 	return s[c]
 }
 
-// Supports reports whether this host satisfies one page's group. A group is
-// satisfied by any one of its capabilities — see Prerequisites — and a group
-// the table does not classify requires nothing, so it is reported as
-// supported.
+// Supports reports whether this host satisfies one page's group: every one
+// of its AllOf capabilities, and one of its AnyOf alternatives when it lists
+// any — see Prerequisites. A group the table does not classify requires
+// nothing, so it is reported as supported.
 //
 // That last case is a runtime safety net rather than a licence to leave the
 // table incomplete: internal/installcheck holds the table to
 // config.SchemaGroups in both directions, so an unclassified group fails a
 // gate rather than silently rendering on a host that cannot back it.
 func (s Set) Supports(page, group string) bool {
-	required, classified := Required(page, group)
-	if !classified || len(required) == 0 {
+	required, classified := requirementIndex[pageGroup{page, group}]
+	if !classified {
 		return true
 	}
-	for _, c := range required {
-		if s[c] {
-			return true
+	return required.SatisfiedBy(s)
+}
+
+// Control names one helper-backed action rendered inside a group whose
+// other controls do not share its prerequisite. Hiding the whole group
+// would take working siblings with it — Powerwash beside Factory Reset,
+// the stage button and published versions beside Roll Back — so the view
+// asks SupportsControl for that one row instead.
+type Control string
+
+const (
+	// RollbackControl is the Recovery page's Roll Back row, rendered
+	// under bootc_updates_group beside the unprivileged Published
+	// versions list. It calls chairlift-ublue-helper rollback.
+	RollbackControl Control = "rollback"
+	// FactoryResetControl is reset_group's Factory Reset row, beside
+	// Powerwash, which needs no privilege. It calls chairlift-ublue-helper
+	// factory-reset.
+	FactoryResetControl Control = "factory-reset"
+)
+
+// ControlPrerequisite is one control, the group that renders it, and the
+// capabilities it needs beyond that group's own.
+type ControlPrerequisite struct {
+	Control Control
+	Page    string
+	Group   string
+	AllOf   []Capability
+}
+
+// controlPrerequisites classifies every Control constant.
+// TestControlPrerequisitesSitInsideClassifiedGroups holds it to the
+// constants and to the group table.
+var controlPrerequisites = []ControlPrerequisite{
+	{Control: FactoryResetControl, Page: "maintenance_page", Group: "reset_group", AllOf: []Capability{UblueHelper}},
+	{Control: RollbackControl, Page: "updates_page", Group: "bootc_updates_group", AllOf: []Capability{UblueHelper}},
+}
+
+// SupportsControl reports whether this host has what one control needs
+// beyond its group. The caller has already decided the group renders; this
+// answers only for the row. An unclassified control is supported, for the
+// same reason an unclassified group is. A nil Set supports no classified
+// control, which is the fail-closed answer for a caller that could not
+// resolve.
+func (s Set) SupportsControl(c Control) bool {
+	for _, entry := range controlPrerequisites {
+		if entry.Control != c {
+			continue
 		}
+		for _, required := range entry.AllOf {
+			if !s[required] {
+				return false
+			}
+		}
+		return true
 	}
-	return false
+	return true
+}
+
+// ControlPrerequisites returns every classified control, ordered by page,
+// group, then control, each with a copy of its capabilities. The Help page
+// walks it to explain which controls this host hides.
+func ControlPrerequisites() []ControlPrerequisite {
+	result := make([]ControlPrerequisite, len(controlPrerequisites))
+	for i, entry := range controlPrerequisites {
+		entry.AllOf = append([]Capability(nil), entry.AllOf...)
+		result[i] = entry
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Page != result[j].Page {
+			return result[i].Page < result[j].Page
+		}
+		if result[i].Group != result[j].Group {
+			return result[i].Group < result[j].Group
+		}
+		return result[i].Control < result[j].Control
+	})
+	return result
 }
 
 // Compose composes an administrator's group configuration with a resolved
@@ -201,11 +282,52 @@ func Compose(configured func(page, group string) bool, set Set) func(page, group
 }
 
 // Prerequisite is one classified page/group pair and the capabilities that
-// can satisfy it. An empty AnyOf requires nothing of the host.
+// can satisfy it: every one of AllOf, and at least one of AnyOf when AnyOf
+// is non-empty. Both empty requires nothing of the host.
 type Prerequisite struct {
 	Page  string
 	Group string
+	AllOf []Capability
 	AnyOf []Capability
+}
+
+// SatisfiedBy reports whether set backs this prerequisite.
+func (p Prerequisite) SatisfiedBy(set Set) bool {
+	for _, c := range p.AllOf {
+		if !set[c] {
+			return false
+		}
+	}
+	if len(p.AnyOf) == 0 {
+		return true
+	}
+	for _, c := range p.AnyOf {
+		if set[c] {
+			return true
+		}
+	}
+	return false
+}
+
+// Gated reports whether the prerequisite names any capability, i.e. whether
+// resolution can hide its group at all.
+func (p Prerequisite) Gated() bool {
+	return len(p.AllOf) > 0 || len(p.AnyOf) > 0
+}
+
+// Capabilities returns every capability the prerequisite names, AllOf first,
+// as a fresh slice.
+func (p Prerequisite) Capabilities() []Capability {
+	result := make([]Capability, 0, len(p.AllOf)+len(p.AnyOf))
+	result = append(result, p.AllOf...)
+	return append(result, p.AnyOf...)
+}
+
+// copied returns p with its own copies of both capability slices.
+func (p Prerequisite) copied() Prerequisite {
+	p.AllOf = append([]Capability(nil), p.AllOf...)
+	p.AnyOf = append([]Capability(nil), p.AnyOf...)
+	return p
 }
 
 // prerequisites classifies every configurable group. The list is total over
@@ -224,16 +346,26 @@ type Prerequisite struct {
 //     a query against the feature store rather than the presence of an asset.
 //
 // Those two keep their existing asynchronous gates in the view layer. Every
-// other entry names the presence that makes its group meaningful, and the
-// group is satisfied by any one of them.
+// other entry names the presences that make its group meaningful: all of
+// AllOf, and any one of AnyOf.
+//
+// A group whose every control calls chairlift-ublue-helper needs
+// UblueHelper in AllOf, so a host without it (Dakota) hides the group
+// rather than rendering controls that fail. A group that mixes helper and
+// non-helper controls does not: its helper-backed rows are floored one by
+// one through controlPrerequisites instead.
 var prerequisites = []Prerequisite{
-	// Updates.
-	{Page: "updates_page", Group: "automatic_updates_group"},
+	// Updates. automatic_updates_group's timer state is readable without
+	// the helper, but the group is one switch, and flipping it is a helper
+	// call; a read-only row is not what the group is for.
+	{Page: "updates_page", Group: "automatic_updates_group", AllOf: []Capability{UblueHelper}},
 	{Page: "updates_page", Group: "bootc_status_group"},
 	{Page: "updates_page", Group: "bootc_updates_group", AnyOf: []Capability{BootcStage}},
 	{Page: "updates_page", Group: "brew_trust_group", AnyOf: []Capability{Homebrew}},
 	{Page: "updates_page", Group: "brew_updates_group", AnyOf: []Capability{Homebrew}},
-	{Page: "updates_page", Group: "channel_group", AnyOf: []Capability{ImageDescriptor}},
+	// The early-updates switch and the graphics-driver Switch are both
+	// helper calls resolved against the descriptor.
+	{Page: "updates_page", Group: "channel_group", AllOf: []Capability{ImageDescriptor, UblueHelper}},
 	{Page: "updates_page", Group: "flatpak_updates_group", AnyOf: []Capability{Flatpak}},
 
 	// Applications.
@@ -248,7 +380,7 @@ var prerequisites = []Prerequisite{
 	{Page: "agents_page", Group: "agents_group", AnyOf: []Capability{Homebrew}},
 
 	// Features.
-	{Page: "features_page", Group: "dx_group", AnyOf: []Capability{ImageDescriptor}},
+	{Page: "features_page", Group: "dx_group", AllOf: []Capability{ImageDescriptor, UblueHelper}},
 	{Page: "features_page", Group: "features_group"},
 	{Page: "features_page", Group: "gaming_group", AnyOf: []Capability{ImageDescriptor}},
 	{Page: "help_page", Group: "troubleshooting_group", AnyOf: []Capability{Homebrew}},
@@ -272,25 +404,25 @@ type pageGroup struct{ page, group string }
 
 // requirementIndex is prerequisites keyed by page and group, built once
 // so a lookup does not scan the list per group per page build.
-var requirementIndex = func() map[pageGroup][]Capability {
-	index := make(map[pageGroup][]Capability, len(prerequisites))
+var requirementIndex = func() map[pageGroup]Prerequisite {
+	index := make(map[pageGroup]Prerequisite, len(prerequisites))
 	for _, p := range prerequisites {
-		index[pageGroup{p.Page, p.Group}] = p.AnyOf
+		index[pageGroup{p.Page, p.Group}] = p
 	}
 	return index
 }()
 
-// Required returns the capabilities that can satisfy one page's group.
-// classified is false for a pair the table does not classify.
+// Required returns the prerequisite of one page's group. classified is false
+// for a pair the table does not classify.
 //
-// The returned slice is a copy: a caller may sort or truncate it without
+// The returned slices are copies: a caller may sort or truncate them without
 // changing the resolved table.
-func Required(page, group string) (required []Capability, classified bool) {
-	anyOf, ok := requirementIndex[pageGroup{page, group}]
+func Required(page, group string) (required Prerequisite, classified bool) {
+	p, ok := requirementIndex[pageGroup{page, group}]
 	if !ok {
-		return nil, false
+		return Prerequisite{}, false
 	}
-	return append([]Capability(nil), anyOf...), true
+	return p.copied(), true
 }
 
 // Prerequisites returns every classified pair, ordered by page and then group,
@@ -300,11 +432,7 @@ func Required(page, group string) (required []Capability, classified bool) {
 func Prerequisites() []Prerequisite {
 	result := make([]Prerequisite, len(prerequisites))
 	for i, p := range prerequisites {
-		result[i] = Prerequisite{
-			Page:  p.Page,
-			Group: p.Group,
-			AnyOf: append([]Capability(nil), p.AnyOf...),
-		}
+		result[i] = p.copied()
 	}
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Page != result[j].Page {
@@ -324,6 +452,8 @@ func assetPaths(c Capability) []string {
 		return []string{bootc.StageScriptPath}
 	case ImageDescriptor:
 		return []string{imageinfo.DescriptorPath}
+	case UblueHelper:
+		return []string{ublue.HelperPath}
 	case Homebrew:
 		return nil
 	default:
@@ -331,9 +461,8 @@ func assetPaths(c Capability) []string {
 	}
 }
 
-// statFileInfo is the os.FileInfo returned by a stubbed Stat. A capability
-// never inspects the file it reports, so the zero-valued metadata is all the
-// resolution needs.
+// statFileInfo is the os.FileInfo returned by a stubbed Stat. Its zero mode
+// reads as a regular file, which is all any presence test inspects.
 type statFileInfo struct{ name string }
 
 func (s statFileInfo) Name() string { return s.name }
@@ -387,7 +516,7 @@ func ProbeFromPresent(present ...Capability) Probe {
 
 // ProbeFromNames builds a Probe from capability *names* — the string form of a
 // Capability constant, e.g. "flatpak", "brew", "bootc-stage",
-// "image-descriptor". It is the env-driven host-shape seam the
+// "image-descriptor", "ublue-helper". It is the env-driven host-shape seam the
 // screenshot walkthrough uses: the chairlift_e2e build splits a comma-separated
 // environment variable and passes the words here. Names that are not a
 // classified capability are ignored, so a typo or an unknown tool never
@@ -424,9 +553,9 @@ func DetectWith(p Probe) Set {
 		set[entry.capability] = onPath(p, entry.binary)
 	}
 
-	// The OS staging capabilities are asset presences, not command
-	// presences: each group's action is a fixed script invoked through
-	// pkexec, so the script is what the group needs.
+	// The OS staging and helper capabilities are asset presences, not
+	// command presences: each group's action is a fixed path invoked through
+	// pkexec, so that path is what the group needs.
 	for _, entry := range assetCapabilities {
 		set[entry.capability] = entry.present(p)
 	}
@@ -451,4 +580,15 @@ func exists(p Probe, path string) bool {
 	}
 	_, err := p.Stat(path)
 	return err == nil
+}
+
+// regularFile reports whether one fixed path is present as a regular file,
+// following symlinks as os.Stat does. A directory or device at the path is
+// not a program pkexec can run.
+func regularFile(p Probe, path string) bool {
+	if p.Stat == nil {
+		return false
+	}
+	info, err := p.Stat(path)
+	return err == nil && info.Mode().IsRegular()
 }

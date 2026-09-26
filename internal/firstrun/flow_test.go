@@ -103,7 +103,7 @@ func TestSetupEveryChoiceHonorsOriginalPolicyAndCapability(t *testing.T) {
 				for _, configured := range []bool{false, true} {
 					for _, supported := range []bool{false, true} {
 						caps := allSetupCapabilities()
-						for _, c := range required {
+						for _, c := range required.Capabilities() {
 							caps[c] = supported
 						}
 						floor := capability.Compose(func(p, g string) bool { return configured || (PolicyRef{p, g} != ref) }, caps)
@@ -117,7 +117,7 @@ func TestSetupEveryChoiceHonorsOriginalPolicyAndCapability(t *testing.T) {
 								found = found || c.ID == choice.ID
 							}
 						}
-						want := configured && (supported || len(required) == 0)
+						want := configured && (supported || !required.Gated())
 						if found != want {
 							t.Fatalf("%s configured=%v supported=%v: offered=%v", choice.ID, configured, supported, found)
 						}

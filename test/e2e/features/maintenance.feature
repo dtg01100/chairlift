@@ -202,7 +202,7 @@ Feature: Maintenance and its Recovery detail
     And I do not see "Remove apps you installed"
     And the application log does not contain "views: reset group built"
 
-  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,brew,podman,bootc-stage
+  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,brew,podman,bootc-stage,ublue-helper
   @stub.maintenance_bootc_rollback @stub.maintenance_package_tools
   Scenario: Without Flatpak or Distrobox the enabled reset group stays hidden
     Given ChairLift is running
@@ -213,7 +213,7 @@ Feature: Maintenance and its Recovery detail
     And I do not see "Remove apps you installed"
     And the application log does not contain "views: reset group built"
 
-  @config.maintenance-shipped @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,brew,podman
+  @config.maintenance-shipped @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,brew,podman,ublue-helper
   @stub.maintenance_bootc_rollback @stub.maintenance_package_tools
   Scenario: With no reset enabled and no bootc staging there is no Recovery entry
     Given ChairLift is running

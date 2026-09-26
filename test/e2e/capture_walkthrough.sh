@@ -130,7 +130,7 @@ export CHAIRLIFT_IMAGE_INFO
 export CHAIRLIFT_GPU_VENDORS
 
 export CHAIRLIFT_AUTO_UPDATES
-: "${CHAIRLIFT_CAPABILITIES:=image-descriptor,flatpak,brew,bootc-stage}"
+: "${CHAIRLIFT_CAPABILITIES:=image-descriptor,flatpak,brew,bootc-stage,ublue-helper}"
 export CHAIRLIFT_CAPABILITIES
 
 

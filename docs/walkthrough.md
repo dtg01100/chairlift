@@ -222,9 +222,10 @@ scrubbed system information — OS, image, kernel, desktop, and GPU — onto the
 clipboard to include when asking for help.
 
 When the configuration turns on something this computer cannot run — Flatpak
-or Homebrew is absent, or the machine is not a native A/B install — **Feature
-availability** appears with one collapsed row, **Why is something missing?**,
-that names each such feature and what it needs.
+or Homebrew is absent, the machine is not a native A/B install, or the system
+helper Control Center uses for administrator actions is not installed (as on
+Dakota) — **Feature availability** appears with one collapsed row, **Why is
+something missing?**, that names each such feature and what it needs.
 
 ---
 

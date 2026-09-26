@@ -1109,9 +1109,13 @@ mutually inconsistent answers the views layer once derived for itself.
 
 A capability is the presence of a backing tool or asset, never a runtime
 state. `Flatpak`, `Homebrew`, and `Distrobox` resolve from one
-`exec.LookPath` each. `BootcStage` and `ImageDescriptor` resolve
-from `os.Stat` against the owning package's own constant —
-`bootc.StageScriptPath` and `imageinfo.DescriptorPath`. Every probe is
+`exec.LookPath` each. `BootcStage`, `ImageDescriptor`, and `UblueHelper`
+resolve from `os.Stat` against the owning package's own constant —
+`bootc.StageScriptPath`, `imageinfo.DescriptorPath`, and `ublue.HelperPath`
+(which must be a regular file, since pkexec cannot run anything else). The
+helper is its own capability, not implied by the descriptor, because the two
+ship separately: Dakota carries the descriptor and the stage script but no
+`/usr/bin/chairlift-ublue-helper`. Every probe is
 non-blocking by construction, which is the constraint page-level resolution
 inherits: it runs synchronously on the GTK main thread during `buildUI`. That
 is also the line between this package and the gates that stay asynchronous —
@@ -1132,10 +1136,22 @@ make a test's probe substitution order-dependent.
 
 `Set.Supports(page, group)` is the `func(page, group string) bool` predicate
 `navigation.VisibleItems` already accepts. It resolves the prerequisites table,
-where a group is satisfied by **any one** of the listed capabilities:
+where a group needs **every** capability in its `AllOf` and **any one** of its
+`AnyOf` alternatives when it lists any:
 `bootc_updates_group` needs the stage script, `agents_group` needs Homebrew,
 `reset_group` needs Flatpak or Distrobox because powerwash's two steps
-independently skip when their own tool is absent. A group with no capabilities
+independently skip when their own tool is absent. A group whose every control
+calls `chairlift-ublue-helper` needs `UblueHelper`: `automatic_updates_group`
+(its only control is the switch, although the timer state itself is readable
+without the helper), and `channel_group` and `dx_group`, which need the image
+descriptor as well. A group that mixes helper and non-helper controls is not
+hidden for the helper; instead each helper-backed row asks
+`Set.SupportsControl(control)`, answered from a second, control-level table:
+`RollbackControl` (the Recovery page's Roll Back row, beside the unprivileged
+Published versions list under `bootc_updates_group`) and `FactoryResetControl`
+(beside Powerwash under `reset_group`). That keeps the capability package the
+only place a helper presence is decided — views never `os.Stat` the helper.
+A group with no capabilities
 requires nothing of the host and is listed anyway, so that "no host
 prerequisite" is a recorded decision rather than an omission; two of those
 (`bootc_status_group` and `features_group`) are named in the table's own
@@ -1163,21 +1179,33 @@ The Help page's "Why is something missing?" expander is the floor's one
 explanation surface. `pageview.UnavailableFeatures(set, configured)` walks
 `capability.Prerequisites()` with the window's already-resolved set — it never
 re-probes — and lists each group that configuration enables but `Supports`
-rejects, titled for a person and subtitled with the missing capability. A group
+rejects, titled for a person and subtitled with only the capabilities actually
+missing ("Needs X and Y", alternatives joined with "or"). It then walks
+`capability.ControlPrerequisites()` and lists each control hidden inside a group
+that does render (a control in a hidden group is already covered by that
+group's row). The helper is named in words before its path — "Needs the
+Control Center system helper (/usr/bin/chairlift-ublue-helper)" — because the
+binary name means nothing to someone who knows the application as Control
+Center. A group
 configuration disabled is the administrator's choice and is not listed. Its
-title table is held total over the capability-gated groups by
-`TestEveryCapabilityGatedGroupHasATitle`.
+title tables are held total over the capability-gated groups and the
+classified controls by `TestEveryCapabilityGatedGroupHasATitle`.
 
 The package's own tests are table-driven and derive their cases from the tables
 they cover, rather than restating them. `TestDetectWithResolvesEveryCapability`
 walks every capability either probe table provides, across each single-tool
-host, the two asset-capability splits, a fully capable host, and a probe that
+host, the asset-capability splits (including a directory at the helper path,
+which is not the helper), a fully capable host, and a probe that
 cannot answer at all. `TestEveryRequiredCapabilityHasAProbe` rejects a
-prerequisite naming a capability no probe resolves — a typo in the table still
-compiles, because a `Capability` is a string. `TestSupportsAnyOneCapabilityOfItsGroup`
-covers every prerequisites entry: the empty host, each of a multi-capability
-group's capabilities in isolation, and a host holding only unrelated
-capabilities. Running this file is itself the purity check ADR-0007 describes:
+prerequisite or control naming a capability no probe resolves — a typo in the
+table still compiles, because a `Capability` is a string.
+`TestSupportsAnyOneCapabilityOfItsGroup` covers every prerequisites entry: the
+empty host, each `AnyOf` alternative in isolation beside the `AllOf` set, a
+fully capable host missing each `AllOf` capability, and a host holding only
+unrelated capabilities. `TestHelperActionGroupsNeedTheUblueHelper` and
+`TestSupportsControlFloorsHelperActionsInsideMixedGroups` pin the Dakota shape:
+helper-only groups hide, their mixed siblings stay, and only Roll Back and
+Factory Reset disappear from theirs. Running this file is itself the purity check ADR-0007 describes:
 a puregotk import anywhere in the dependency graph would panic at package init,
 before any test function ran.
 
@@ -1437,15 +1465,26 @@ those controls were reachable (issue #250). The automatic-updates switch is a
 `::state-set` exactly as a click does: an unmarked revert after a failed or
 previewed helper call would request the opposite change.
 
-Restart is the run's only privileged surface of its own. `PhaseRestartRequired`
+Restart is the run's only session-ending surface of its own. `PhaseRestartRequired`
 is reached only when a source reports that a restart is required — the OS
 provider reads it from `bootc status`'s staged deployment, because the stage
 script is idempotent and exits 0 on an already-current system — and
 `updatepresent` renders `ActionRestart` as "Restart now", which
-`UpdateShell.StartRestart` sends through `ublue.Restart` to the
-`chairlift-ublue-helper` `restart` subcommand. Its argv is the fixed
+`UpdateShell.StartRestart` sends through `ublue.Restart(ctx, helperInstalled)`.
+`helperInstalled` is `capability.UblueHelper`, resolved once by the window and
+passed to `NewUpdateShell`. With the helper installed the route is unchanged:
+the `chairlift-ublue-helper` `restart` subcommand, whose argv is the fixed
 `systemctl reboot` (`ubluehelper.RestartArgs`) with no delay and no target;
-scheduled restarts would each need their own action.
+scheduled restarts would each need their own action. Without it — Dakota —
+`ublue.Restart` runs `systemctl reboot` as the invoking user, which asks
+systemd-logind directly: the stock `org.freedesktop.login1.reboot` policy
+allows an active local session (`allow_active=yes`), so that route needs no
+ChairLift policy and no pkexec, and logind's own policy still asks for an
+administrator when another user is logged in or an inhibitor blocks it. The
+logind route honors `dryrun.Enabled()` and records a `restart` entry in
+`internal/journal` (`would_run: ["systemctl", "reboot"]`) exactly as a helper
+call does; the helper route stays preferred where installed so a host with it
+behaves as before.
 
 After a live run, `UserHome.OnUpdateFinished` reloads the Flatpak and
 Homebrew inventories and, when the operating system completed, re-reads bootc

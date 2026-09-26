@@ -109,7 +109,7 @@ Feature: Fail-closed configuration and configuration-driven visibility
     Then the "Applications" row says "Disabled by administrator"
     And the "Developer tools" source row does not say "Disabled by administrator"
 
-  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,podman,bootc-stage
+  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,podman,bootc-stage,ublue-helper
   Scenario: The capability floor hides pages and groups that configuration enables
     Given ChairLift is running
     Then the sidebar lists exactly "Updates, Apps, Features, Livery, Maintenance, Help"
@@ -123,13 +123,13 @@ Feature: Fail-closed configuration and configuration-driven visibility
     And the "App updates" row says "Needs Flatpak"
     And the "Recovery" row says "Needs Flatpak or Distrobox"
 
-  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,podman,bootc-stage
+  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,podman,bootc-stage,ublue-helper
   Scenario: An update source the host cannot back is not blamed on the administrator
     Given ChairLift is running
     Then the "Applications" row says "Not available on this system"
     And the "Developer tools" row says "Not available on this system"
 
-  @config.config-no-agents-maintenance @env.CHAIRLIFT_CAPABILITIES=image-descriptor,podman,bootc-stage
+  @config.config-no-agents-maintenance @env.CHAIRLIFT_CAPABILITIES=image-descriptor,podman,bootc-stage,ublue-helper
   Scenario: Help explains missing tools, never groups the administrator disabled
     Given ChairLift is running
     When I select "Help" in the sidebar
@@ -138,7 +138,50 @@ Feature: Fail-closed configuration and configuration-driven visibility
     And the feature availability list omits "Agent Mode"
     And the feature availability list omits "Recovery"
 
-  @env.CHAIRLIFT_CAPABILITIES=flatpak,brew,podman,bootc-stage
+  # Dakota's shape: the image descriptor, the stage script, Flatpak, and
+  # Homebrew, but no /usr/bin/chairlift-ublue-helper. Every control that
+  # would call the helper is absent — whole groups on Updates and Features,
+  # single rows beside working siblings on Recovery — and Help names the
+  # helper as the reason.
+  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,brew,podman,bootc-stage
+  @stub.updates-flatpak-current @stub.updates-brew-current @stub.features-gaming-none
+  @stub.maintenance_bootc_rollback @stub.maintenance_package_tools
+  Scenario: Without the ublue helper its controls are absent and Help says why
+    Given ChairLift is running
+    When I open the "Updates" page
+    Then the "Applications" row says "Up to date"
+    And I do not see "Automatic updates"
+    And I do not see "Get updates early"
+    And I do not see "Graphics driver"
+    And the application log does not contain "views: image identity group built"
+    And the application log does not contain "views: automatic updates row built"
+    When I open the "Features" page
+    Then the Features page shows a "Gaming" group
+    And the Features page shows no "Developer" group
+    And I do not see "Developer tools"
+    And the application log contains "dx_group=false gaming_group=true"
+    When I open the "Maintenance" page
+    And I open the Recovery detail
+    Then I see "Remove apps you installed"
+    And I see "Published versions"
+    And I do not see "Reset the system"
+    And I do not see "Go back to the previous version"
+    And the "Roll Back" button is not shown
+    And the application log contains "views: reset group built"
+    And the application log contains "views: roll back hidden (/usr/bin/chairlift-ublue-helper not installed)"
+    And the application log contains "views: factory reset hidden (/usr/bin/chairlift-ublue-helper not installed)"
+    When I select "Help" in the sidebar
+    And I ask the Help page why something is missing
+    Then the Help page explains "Developer mode" with "Needs the Control Center system helper (/usr/bin/chairlift-ublue-helper)"
+    And the Help page explains "Automatic updates" with "Needs the Control Center system helper (/usr/bin/chairlift-ublue-helper)"
+    And the Help page explains "Release channel" with "Needs the Control Center system helper (/usr/bin/chairlift-ublue-helper)"
+    And the Help page explains "Roll Back" with "Needs the Control Center system helper (/usr/bin/chairlift-ublue-helper)"
+    And the Help page explains "Factory Reset" with "Needs the Control Center system helper (/usr/bin/chairlift-ublue-helper)"
+    And the Help page does not call "Recovery" missing
+    And the Help page does not call "Gaming mode" missing
+    And the action journal is empty
+
+  @env.CHAIRLIFT_CAPABILITIES=flatpak,brew,podman,bootc-stage,ublue-helper
   Scenario Outline: The legacy system_page channel group migrates onto Updates
     Given ChairLift is running
     Then the application log does not contain "CONFIGURATION ERROR"

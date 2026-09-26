@@ -17,13 +17,17 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"os/exec"
 	"os/user"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/projectbluefin/chairlift/internal/dryrun"
 	"github.com/projectbluefin/chairlift/internal/gpu"
 	"github.com/projectbluefin/chairlift/internal/helperexec"
 	"github.com/projectbluefin/chairlift/internal/imageinfo"
+	"github.com/projectbluefin/chairlift/internal/journal"
 	"github.com/projectbluefin/chairlift/internal/pkexec"
 	"github.com/projectbluefin/chairlift/internal/ubluehelper"
 )
@@ -274,11 +278,59 @@ func SetDeveloperMode(ctx context.Context, enabled bool) error {
 	return err
 }
 
+// logindRebootArgv is the unprivileged restart: systemctl run as the
+// invoking user asks systemd-logind's Reboot method, which the stock
+// org.freedesktop.login1.reboot policy allows for an active local session
+// without authentication (allow_active=yes). logind itself still asks for
+// an administrator when another user is logged in or an inhibitor blocks
+// the restart, through its own policy — never through ChairLift's.
+var logindRebootArgv = []string{"systemctl", "reboot"}
+
+// runUnprivileged is the injection seam for the one unprivileged command
+// this package runs, so the logind route is testable without restarting
+// the test host. It returns the command's combined output.
+var runUnprivileged = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+	return exec.CommandContext(ctx, name, args...).CombinedOutput()
+}
+
 // Restart restarts the machine. It is the only ChairLift action that ends the
 // user's session, so callers must confirm before reaching it.
-func Restart(ctx context.Context) error {
-	_, _, err := runHelper(ctx, pkexec.Command, ubluehelper.CommandRestart)
-	return err
+//
+// helperInstalled is capability.UblueHelper as the caller resolved it (this
+// package cannot import internal/capability, which imports it for
+// HelperPath). With the helper installed Restart keeps its privileged route,
+// pkexec chairlift-ublue-helper restart. Without it — Dakota ships no
+// ChairLift helper — Restart asks systemd-logind directly as the invoking
+// user, which needs no ChairLift policy and no pkexec: a reboot is something
+// an active local session may already request.
+func Restart(ctx context.Context, helperInstalled bool) error {
+	if helperInstalled {
+		_, _, err := runHelper(ctx, pkexec.Command, ubluehelper.CommandRestart)
+		return err
+	}
+	return restartThroughLogind(ctx)
+}
+
+// restartThroughLogind runs logindRebootArgv, journalled and honoring
+// dry-run exactly as a helper invocation is, so the journal stays the one
+// record of every session-ending action.
+func restartThroughLogind(ctx context.Context) error {
+	argv := append([]string(nil), logindRebootArgv...)
+	if dryrun.Enabled() {
+		journal.Record(ubluehelper.CommandRestart, nil, argv, journal.SuppressedDryRun)
+		log.Printf("[DRY-RUN] would execute: %v", argv)
+		return nil
+	}
+	journal.Record(ubluehelper.CommandRestart, nil, argv, journal.SuppressedNone)
+	output, err := runUnprivileged(ctx, argv[0], argv[1:]...)
+	if err != nil {
+		message := strings.TrimSpace(string(output))
+		if message == "" {
+			message = err.Error()
+		}
+		return &Error{Message: fmt.Sprintf("systemctl reboot: %s", message), Err: err}
+	}
+	return nil
 }
 
 // Rollback makes the previous deployment the default for the next boot. It

@@ -77,12 +77,12 @@ two surviving groups to `updates_page` and remove `system_page` when convenient.
 
 ### Updates Page (`updates_page`)
 
-- `automatic_updates_group`: The automatic-background-updates switch, and nothing else — whether this system installs updates on its own schedule. Updating now is the update shell's single primary action and has no configuration key. Hidden entirely on a host with no unattended-update timer
+- `automatic_updates_group`: The automatic-background-updates switch, and nothing else — whether this system installs updates on its own schedule. Updating now is the update shell's single primary action and has no configuration key. Hidden entirely on a host with no unattended-update timer, and on a host without the privileged helper `/usr/bin/chairlift-ublue-helper` (which flips it)
 - `bootc_updates_group`: System-wide bootc updates
 - `flatpak_updates_group`: Available Flatpak application updates (user and system)
 - `brew_updates_group`: Homebrew package updates and outdated packages
 - `brew_trust_group`: Untrusted Homebrew taps with installed packages (Homebrew 6 tap trust); only shown when there is something to trust
-- `channel_group`: Release channel and graphics-driver switching. Both replace the operating system and require a restart, so they sit with updates. Shown only when `/usr/share/ublue-os/image-info.json` is present
+- `channel_group`: Release channel and graphics-driver switching. Both replace the operating system and require a restart, so they sit with updates. Shown only when `/usr/share/ublue-os/image-info.json` and the privileged helper `/usr/bin/chairlift-ublue-helper` are both present
 - `bootc_status_group`: Compact system-version readout, with build identifiers behind a details row (when available)
 
 ### Applications Page (`applications_page`)
@@ -113,12 +113,12 @@ two surviving groups to `updates_page` and remove `system_page` when convenient.
     - `script`: Absolute path to the script to execute. Required when `sudo: true`.
     - `sudo`: Boolean indicating if the script requires administrator privileges (uses pkexec). `sudo: true` is accepted only from trusted `/etc/chairlift/config.yml` or `/usr/share/chairlift/config.yml` configurations. The rule is applied to the effective configuration, so an untrusted file may not enable a group whose actions include a privileged one, even when it inherits that action from the built-in defaults rather than declaring `sudo: true` itself.
 - `maintenance_freespace_group`: One routine cleanup action composing the shared post-update maintenance runner; removes cached downloads and unused supporting software, never installed apps, documents, or containers
-- `reset_group`: Powerwash (removes user Flatpaks and Distrobox containers) and Factory Reset (`bootc install reset --experimental`) utilities (disabled by default)
+- `reset_group`: Powerwash (removes user Flatpaks and Distrobox containers) and Factory Reset (`bootc install reset --experimental`) utilities (disabled by default). Factory Reset alone is omitted on a host without `/usr/bin/chairlift-ublue-helper`; Powerwash needs no helper
 
 ### Features Page (`features_page`)
 
 - `features_group`: System features managed by updex (requires `updex` command)
-- `dx_group`: Developer Mode; adds the invoking account to container, VM, and serial-device groups (shown only when `/usr/share/ublue-os/image-info.json` is present)
+- `dx_group`: Developer Mode; adds the invoking account to container, VM, and serial-device groups (shown only when `/usr/share/ublue-os/image-info.json` and the privileged helper `/usr/bin/chairlift-ublue-helper` are both present)
   - `install_pulp`: After a confirmed enable, install the Pulp feed reader (`org.gnome.gitlab.cheywood.Pulp`) as a user-scope Flatpak. Defaults to `false`. Unprivileged and opt-in: it installs for the invoking account only, and a failure here is reported as its own failure rather than rolling back developer access
   - `stage_feeds`: After a confirmed enable, write the curated developer feed catalog to `~/.local/share/chairlift/developer-feeds.opml` so the user can import it into their reader. Defaults to `false`. ChairLift writes the file and stops — nothing is imported automatically, and Pulp's own database is never touched. Disabling Developer Mode never removes Pulp, the staged file, or anything already imported from it
 - `gaming_group`: Gaming Mode; toggles gaming optimizations (shown only when `/usr/share/ublue-os/image-info.json` is present)

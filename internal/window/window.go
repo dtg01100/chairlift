@@ -185,6 +185,7 @@ func (w *Window) buildUI() {
 				updateflow.SystemComponents: sourcePolicy("features_page", "features_group"),
 			}
 		},
+		w.capabilities.Has(capability.UblueHelper),
 		w,
 	)
 	w.updateShell.SetOnUpdateFinished(w.views.OnUpdateFinished)

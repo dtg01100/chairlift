@@ -214,7 +214,7 @@ Feature: Help destination
     And the troubleshooting setup never ran "brew install"
     And the "Set Up" button in the "Enhanced Troubleshooting" row is sensitive
 
-  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,podman,bootc-stage
+  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,podman,bootc-stage,ublue-helper
   Scenario: Without Homebrew the troubleshooting group is explained, not shown
     Given ChairLift is running
     When I press "F1"
@@ -223,7 +223,7 @@ Feature: Help destination
     Then the Help page explains "Enhanced Troubleshooting" with "Needs Homebrew"
 
   @config.help-no-troubleshooting
-  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,podman,bootc-stage
+  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,podman,bootc-stage,ublue-helper
   Scenario: Troubleshooting disabled by configuration is not called missing
     Given ChairLift is running
     When I press "F1"

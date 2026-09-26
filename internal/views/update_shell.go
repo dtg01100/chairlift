@@ -57,6 +57,9 @@ type UpdateShell struct {
 	// repeat call replaces it instead of adding a second copy.
 	secondary        *gtk.Widget
 	onUpdateFinished func(updateflow.Snapshot)
+	// helperInstalled is capability.UblueHelper, resolved once by the
+	// window: it picks StartRestart's route and nothing else.
+	helperInstalled bool
 }
 
 // SetOnUpdateFinished registers a callback invoked on the GTK main thread
@@ -71,21 +74,25 @@ func (s *UpdateShell) SetOnUpdateFinished(fn func(updateflow.Snapshot)) {
 // check before returning. policy reports, per source, the administrator's
 // configuration and the host capability floor as separate facts, so a source
 // the host cannot back is not reported as disabled by the administrator.
+// helperInstalled is whether the host has chairlift-ublue-helper
+// (capability.UblueHelper); it decides how "Restart now" restarts.
 func NewUpdateShell(
 	coordinator *updateflow.Coordinator,
 	preferences func() userprefs.Values,
 	policy func() map[updateflow.SourceID]updateflow.Policy,
+	helperInstalled bool,
 	toasts ToastAdder,
 ) *UpdateShell {
 	lifecycle, cancel := context.WithCancel(context.Background())
 	s := &UpdateShell{
-		coordinator: coordinator,
-		preferences: preferences,
-		policy:      policy,
-		toasts:      toasts,
-		sourceRows:  make(map[updateflow.SourceID]*sourceRow),
-		lifecycle:   lifecycle,
-		cancel:      cancel,
+		coordinator:     coordinator,
+		preferences:     preferences,
+		policy:          policy,
+		helperInstalled: helperInstalled,
+		toasts:          toasts,
+		sourceRows:      make(map[updateflow.SourceID]*sourceRow),
+		lifecycle:       lifecycle,
+		cancel:          cancel,
 	}
 	s.build()
 	s.Render(updateflow.Snapshot{Phase: updateflow.PhaseChecking})
@@ -244,8 +251,10 @@ func (s *UpdateShell) StartUpdate() {
 }
 
 // StartRestart restarts the machine so a staged update takes effect. It is
-// the only privileged action this shell performs directly; everything else
-// it drives goes through the coordinator's own providers.
+// the only session-ending action this shell performs directly; everything
+// else it drives goes through the coordinator's own providers. With the
+// ublue helper installed it goes through pkexec as before; without it
+// (Dakota) ublue.Restart asks systemd-logind as the invoking user.
 func (s *UpdateShell) StartRestart() {
 	if s == nil {
 		return
@@ -255,11 +264,12 @@ func (s *UpdateShell) StartRestart() {
 	if s.primary != nil {
 		s.primary.SetSensitive(false)
 	}
+	helperInstalled := s.helperInstalled
 	go func() {
 		ctx, cancel := ublue.DefaultContext()
 		defer cancel()
 
-		err := ublue.Restart(ctx)
+		err := ublue.Restart(ctx, helperInstalled)
 
 		sgtk.RunOnMainThread(func() {
 			if s.primary != nil {
