@@ -54,9 +54,9 @@ func TestExampleChannelTableDocumentsItsReadPaths(t *testing.T) {
 	}
 }
 
-// The Makefile and .goreleaser.yaml must install the example to the same
-// documentation path, and must not install a live table to either read
-// location.
+// The Makefile must install the example to the documentation path and must
+// not install a live table to either read location. The release archive's
+// half of the same rule is TestGoreleaserArchivesCarryTheInstallSurface.
 func TestChannelTableIsNotInstalledLive(t *testing.T) {
 	makefile := readRepoFile(t, "Makefile")
 	const wantExampleDst = "doc/chairlift/channels.example.yml"
@@ -64,25 +64,14 @@ func TestChannelTableIsNotInstalledLive(t *testing.T) {
 		t.Errorf("Makefile does not install channels.example.yml to %s", wantExampleDst)
 	}
 
-	// Only install destinations are inspected, not prose: both files
-	// legitimately name the live paths in comments explaining why they are
+	// Only install destinations are inspected, not prose: the Makefile
+	// legitimately names the live paths in comments explaining why they are
 	// not installed.
-	for _, source := range []struct {
-		relative string
-		isDest   func(line string) bool
-	}{
-		{"Makefile", func(line string) bool { return strings.Contains(line, "install -D") }},
-		{".goreleaser.yaml", func(line string) bool { return strings.HasPrefix(strings.TrimSpace(line), "dst:") }},
-	} {
-		for _, line := range strings.Split(readRepoFile(t, source.relative), "\n") {
-			if !source.isDest(line) {
-				continue
-			}
-			for _, live := range imageinfo.SystemTablePaths {
-				if strings.Contains(line, live) {
-					t.Errorf("%s installs to the live channel table path %s; only the example may be installed\n  %s",
-						source.relative, live, strings.TrimSpace(line))
-				}
+	for _, destination := range installDestinations(t, "Makefile") {
+		for _, live := range imageinfo.SystemTablePaths {
+			if strings.Contains(destination, live) {
+				t.Errorf("Makefile installs to the live channel table path %s; only the example may be installed\n  %s",
+					live, destination)
 			}
 		}
 	}

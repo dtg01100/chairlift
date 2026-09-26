@@ -35,12 +35,28 @@ func RepoRoot() string {
 // There is deliberately no top-level metadata: block here. GoReleaser OSS
 // (unlike Pro) does not support metadata.description/homepage/license/
 // maintainers — see the "switch to plain GitHub Releases" note in
-// docs/design/package-managers.md — so license and repository-URL identity
-// live only in each nfpms[] entry and in release.footer's literal text,
-// both already covered below.
+// docs/design/package-managers.md — so the repository URL lives only in
+// release.footer's literal text, and the license travels as the LICENSE file
+// every release archive ships.
 type GoreleaserConfig struct {
-	Release ReleaseConfig `yaml:"release"`
-	Nfpms   []NfpmConfig  `yaml:"nfpms"`
+	Builds   []BuildConfig   `yaml:"builds"`
+	Archives []ArchiveConfig `yaml:"archives"`
+	Release  ReleaseConfig   `yaml:"release"`
+}
+
+// BuildConfig is the subset of a builds[] entry that decides which executable
+// a release archive carries and under what file name.
+type BuildConfig struct {
+	ID     string `yaml:"id"`
+	Binary string `yaml:"binary"`
+}
+
+// ArchiveConfig is the subset of an archives[] entry relevant to what the
+// release tarball — the artifact the Homebrew cask installs — contains. An
+// empty IDs list means GoReleaser packs every build's binary.
+type ArchiveConfig struct {
+	IDs   []string `yaml:"ids"`
+	Files []string `yaml:"files"`
 }
 
 // ReleaseConfig is the subset of the top-level release: block relevant to the
@@ -50,38 +66,4 @@ type GoreleaserConfig struct {
 // on the gate host or in make ci).
 type ReleaseConfig struct {
 	Footer string `yaml:"footer"`
-}
-
-// NfpmConfig is the subset of an nfpms[] entry relevant to package identity,
-// build selection, conflicts, install locations, and license consistency.
-type NfpmConfig struct {
-	ID           string                   `yaml:"id"`
-	PackageName  string                   `yaml:"package_name"`
-	IDs          []string                 `yaml:"ids"`
-	Bindir       string                   `yaml:"bindir"`
-	License      string                   `yaml:"license"`
-	Conflicts    []string                 `yaml:"conflicts"`
-	Dependencies []string                 `yaml:"dependencies"`
-	Overrides    map[string]NfpmOverrides `yaml:"overrides"`
-	Contents     []NfpmContent            `yaml:"contents"`
-	Formats      []string                 `yaml:"formats"`
-}
-
-// NfpmOverrides is the subset of one per-format nfpms[] overrides entry this
-// package's tests care about. The map is keyed by package format (deb, rpm,
-// apk), and GoReleaser merges each entry over the base nfpm fields for that
-// format's package only.
-type NfpmOverrides struct {
-	Dependencies []string `yaml:"dependencies"`
-}
-
-// NfpmContent is one nfpm contents[] entry's source/destination pair.
-type NfpmContent struct {
-	Src      string       `yaml:"src"`
-	Dst      string       `yaml:"dst"`
-	FileInfo NfpmFileInfo `yaml:"file_info"`
-}
-
-type NfpmFileInfo struct {
-	Mode uint32 `yaml:"mode"`
 }

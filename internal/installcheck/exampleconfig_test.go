@@ -43,25 +43,22 @@ func rootExampleConfigs(t *testing.T) []string {
 	return names
 }
 
-// installDestinations returns every path a packaging file installs to: the
-// argument of a Makefile `install -D`, and the value of a .goreleaser.yaml
-// `dst:` key. Only destinations are collected, never prose, because both files
-// legitimately name paths in comments that explain why they are *not*
-// installed — the same distinction TestChannelTableIsNotInstalledLive draws.
+// installDestinations returns every path the Makefile installs to: the
+// argument of each `install -D`. Only destinations are collected, never prose,
+// because the Makefile legitimately names paths in comments that explain why
+// they are *not* installed — the same distinction
+// TestChannelTableIsNotInstalledLive draws.
 func installDestinations(t *testing.T, relative string) []string {
 	t.Helper()
 
 	var destinations []string
 	for _, line := range strings.Split(readRepoFile(t, relative), "\n") {
 		trimmed := strings.TrimSpace(line)
-		switch {
-		case strings.Contains(trimmed, "install -D"):
+		if strings.Contains(trimmed, "install -D") {
 			fields := strings.Fields(trimmed)
 			if len(fields) > 0 {
 				destinations = append(destinations, fields[len(fields)-1])
 			}
-		case strings.HasPrefix(trimmed, "dst:"):
-			destinations = append(destinations, strings.TrimSpace(strings.TrimPrefix(trimmed, "dst:")))
 		}
 	}
 	return destinations
@@ -73,10 +70,10 @@ func installDestinations(t *testing.T, relative string) []string {
 // how config.bootc-example.yml fell nine groups behind before it was deleted
 // (issue #144).
 //
-// channels.example.yml is the shape this asserts: installed by the Makefile and
-// packaged by both nFPM entries, so a bootc or deb/rpm user finds it under
-// /usr/share/doc/chairlift/. Any future example must arrive wired the same way
-// or not at all.
+// channels.example.yml is the shape this asserts: installed by the Makefile
+// under /usr/share/doc/chairlift/, and carried by every release archive the
+// Homebrew cask installs from. Any future example must arrive wired the same
+// way or not at all.
 func TestEveryCommittedExampleConfigIsShipped(t *testing.T) {
 	examples := rootExampleConfigs(t)
 	if len(examples) == 0 {
@@ -85,7 +82,7 @@ func TestEveryCommittedExampleConfigIsShipped(t *testing.T) {
 	}
 
 	makefileDestinations := installDestinations(t, "Makefile")
-	goreleaserDestinations := installDestinations(t, ".goreleaser.yaml")
+	archives := loadGoreleaserConfig(t).Archives
 
 	for _, example := range examples {
 		installedBy := func(destinations []string) bool {
@@ -101,9 +98,11 @@ func TestEveryCommittedExampleConfigIsShipped(t *testing.T) {
 			t.Errorf("%s is committed but no Makefile `install -D` ships it; "+
 				"install it beside channels.example.yml or delete it", example)
 		}
-		if !installedBy(goreleaserDestinations) {
-			t.Errorf("%s is committed but no .goreleaser.yaml `dst:` packages it; "+
-				"an example absent from the packages reaches no user", example)
+		for i, archive := range archives {
+			if !installedBy(archive.Files) {
+				t.Errorf("%s is committed but .goreleaser.yaml archives[%d] omits it; "+
+					"an example absent from the release archive reaches no Homebrew user", example, i)
+			}
 		}
 	}
 }

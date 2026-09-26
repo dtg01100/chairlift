@@ -20,7 +20,7 @@ to mark it as satisfied by manual inspection rather than by adding it to the
 gated check.
 
 **What to do:** If an acceptance criterion asks for a consistency check
-across multiple sources of truth (e.g. "the nFPM/package layout and the
+across multiple sources of truth (e.g. "the release archive's contents and the
 source-install layout must agree"), every part of that criterion needs a real
 executable, gated check — not a plan note like "`.goreleaser.yaml` is already
 correct, verified by inspection, not modified." Inspection notes don't run in
@@ -32,9 +32,10 @@ writing the check. Scope the chunk to add the automated assertion even for
 the "already fine" half of a consistency requirement.
 
 **Learned from:** issue #59's mill run, plan round 1 — the plan added an
-automated Makefile/DESTDIR install-path check but handled the nFPM package
-layout only by inspection, claiming `.goreleaser.yaml` was "already correct."
-The reviewer rejected the plan because the spec's nFPM consistency criterion
-had no concrete check behind it. Round 2 fixed it by adding
-`TestGoreleaserNfpmLayoutMatchesUsrPrefix`, a real gated test parsing the live
-`.goreleaser.yaml`.
+automated Makefile/DESTDIR install-path check but handled the GoReleaser
+package layout only by inspection, claiming `.goreleaser.yaml` was "already
+correct." The reviewer rejected the plan because the spec's packaging
+consistency criterion had no concrete check behind it. Round 2 fixed it by
+adding a real gated test parsing the live `.goreleaser.yaml`; its successor
+for the Homebrew-only release archive is
+`TestGoreleaserArchivesCarryTheInstallSurface`.

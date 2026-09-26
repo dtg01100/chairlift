@@ -14,15 +14,15 @@ metadata:
 
 **When it applies:** Writing or revising any regression test that asserts a
 property against a real config file or generated collection with a slice/list
-field — e.g. `.goreleaser.yaml`'s `nfpms[]`, `contents[]`, or any other
+field — e.g. `.goreleaser.yaml`'s `archives[]`, `builds[]`, or any other
 `[]T` parsed from a repo asset — where the spec's acceptance criterion is a
 consistency invariant ("layout matches `/usr`", "all entries agree with X")
 rather than a single fixed value.
 
 **What to do:** Index into element `[0]` only as a first draft, then
 immediately generalize before submitting for review: loop over the whole
-slice (`for i, n := range cfg.Nfpms { ... }`) and assert the property on every
-entry, not just the first. A test that hard-codes `cfg.Nfpms[0]` (or
+slice (`for i, a := range cfg.Archives { ... }`) and assert the property on every
+entry, not just the first. A test that hard-codes `cfg.Archives[0]` (or
 equivalent) passes today but silently stops protecting anything the moment a
 second entry is added or an existing one is reordered — which is exactly the
 gap a reviewer checking the acceptance criterion will flag. If a review
@@ -40,14 +40,15 @@ the authoritative inventory and assert the expected dependency for every
 command. Testing only the dependent commands misses the regression where an
 unrelated fixed operation inherits the optional load and becomes unavailable.
 
-**Learned from:** issue #59's mill run — `TestGoreleaserNfpmLayoutMatchesUsrPrefix`
-in `internal/installcheck/goreleaser_test.go` checked only `cfg.Nfpms[0]`
-against the acceptance criterion "the nFPM layout is tested for consistency
-across all packages." The reviewer raised the identical objection across
-three consecutive revision rounds (medium, then medium, then escalated to
-high) because each revision left the single-index check in place instead of
-looping over `cfg.Nfpms`. The chunk only converged — generalizing to a
-`for i, nfpm := range cfg.Nfpms` loop with a per-entry `t.Run` — after
-burning all three rounds on the same feedback; treat "only checks the
-first/one instance" as a signal to generalize the loop bound on the *first*
-revision, not to patch around index 0 again.
+**Learned from:** issue #59's mill run — a since-removed goreleaser
+package-layout test in `internal/installcheck/goreleaser_test.go` checked only
+the first package entry against the acceptance criterion "the package layout
+is tested for consistency across all packages." The reviewer raised the
+identical objection across three consecutive revision rounds (medium, then
+medium, then escalated to high) because each revision left the single-index
+check in place instead of looping over every entry. The chunk only
+converged — generalizing to a loop over the whole slice with a per-entry
+`t.Run`, the shape `TestGoreleaserArchivesCarryTheInstallSurface` keeps
+today — after burning all three rounds on the same feedback; treat "only
+checks the first/one instance" as a signal to generalize the loop bound on
+the *first* revision, not to patch around index 0 again.

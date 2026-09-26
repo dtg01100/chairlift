@@ -96,17 +96,17 @@ The app builds pure-Go (`CGO_ENABLED=0`); the race detector needs CGO.
   path matches its fixed `pkexec` exec-path annotation (see the privilege
   boundary invariant below). It installs maintainer defaults at
   `/usr/share/chairlift/config.yml` and must never install or overwrite the
-  administrator-owned `/etc/chairlift/config.yml`. GoReleaser publishes both
-  the self-contained `projectbluefin-chairlift` package and the mutually exclusive
-  `projectbluefin-chairlift-system-integration` companion for user-scoped GUI
-  installs; every nFPM entry carrying policies must retain the same fixed
-  paths. Published packages declare their mandatory runtime dependencies
-  (issue #89): the full package carries its GTK4, Libadwaita, and Bash names
-  per format via `overrides` — the distro package names differ across
-  deb/rpm/apk, and GoReleaser's overrides merge replaces rather than appends
-  a base-level list — while the integration package declares none, because it
-  ships no GUI, desktop entry, or wrapper script. `internal/installcheck`'s
-  `TestGoreleaserDeclaresMandatoryRuntimeDependencies` holds both halves.
+  administrator-owned `/etc/chairlift/config.yml`. ChairLift is distributed
+  only through Homebrew: the cask installs GoReleaser's release archive,
+  `chairlift_<version>_linux_<arch>.tar.gz`, and there are no deb, rpm, or
+  apk packages. That archive also carries the privileged pieces — both
+  helpers and the bootc, updex, and ublue PolicyKit policies in `data/` — so an OS image that
+  wants the privileged features installs the helpers at `/usr/bin/` and the
+  policies at `/usr/share/polkit-1/actions/` from it, and provides
+  `/usr/libexec/bootc-update-stage` itself. `internal/installcheck`'s
+  `TestGoreleaserArchivesCarryTheInstallSurface` holds every archive to that
+  inventory, with the helpers under the file names their fixed `HelperPath`
+  constants expect.
 
 CI (`.github/workflows/test.yml`) filters tests with `-run "^Test[^I]"
 -skip "Integration"`. That filter excludes *any* test whose name begins `TestI`
@@ -130,9 +130,9 @@ GTK-headless and gated-test-placement skills below). When that gate was added
 it found nine such tests across `internal/distrobox`, `internal/gaming`,
 `internal/version`, `internal/installcheck`, and a since-removed OS update
 provider — among
-them the goreleaser test this file and ADR-0006 both cite as enforcing the
-system-integration package split; its name matched `-skip "Integration"`, so the
-filtered unit-test step never selected it.
+them a since-removed goreleaser packaging test this file cited as
+enforcement; its name matched `-skip "Integration"`, so the filtered
+unit-test step never selected it.
 
 The separately invoked tests under `test/e2e/` are outside the
 `./internal/...` unit-test scope by design. They are enforced by the E2E
@@ -229,8 +229,8 @@ An agent must not break these:
   The operating-system source must keep going through `internal/bootc`'s
   staging path. Adding a
   `bootc upgrade` route to `chairlift-ublue-helper` would break both the
-  staging-ownership invariant below and the system-integration package's
-  fixed-path contract. The run's only privileged surface of its own is
+  staging-ownership invariant below and the fixed-path contract an OS image
+  relies on when it installs the helpers. The run's only privileged surface of its own is
   `restart`: `updateflow.ActionRestart` is set when the snapshot reaches
   `PhaseRestartRequired`, `updatepresent` renders it as a destructive
   "Restart now" button, and `UpdateShell.StartRestart` calls `ublue.Restart`.
@@ -324,13 +324,15 @@ An agent must not break these:
   always pass `pkexec.Command`. `internal/installcheck`'s
   `TestPkexecCommandHasOneOwner` parses every non-test file under `internal/`
   and `cmd/` and fails on any other occurrence; it takes no exemptions.
-- **System-integration split.** The
-  `projectbluefin-chairlift-system-integration` nFPM package contains the fixed-path
-  updex and ublue helpers, the bootc, updex, and ublue PolicyKit policies, package-maintainer
-  config, and the channel-table example, but not the GUI or an OS staging
-  implementation. Distributions pairing it with a user-scoped ChairLift install
-  must provide their trusted stage helper at `/usr/libexec/bootc-update-stage`
-  before enabling `bootc_updates_group`. Do not
+- **Privileged integration ships in the release archive.** The Homebrew cask
+  installs the GUI in user scope and cannot place root-owned files, so the
+  release archive also carries the fixed-path updex and ublue helpers, the
+  bootc, updex, and ublue PolicyKit policies, maintainer config, and the
+  channel-table example. An OS image that wants the privileged features
+  installs the helpers at `/usr/bin/` and the policies at
+  `/usr/share/polkit-1/actions/` from that archive, and must provide its
+  trusted stage helper at `/usr/libexec/bootc-update-stage` before enabling
+  `bootc_updates_group`; ChairLift ships no OS staging implementation. Do not
   make the privileged path configurable from ChairLift's user-writable
   configuration.
 - **GTK main-thread safety.** All external tool calls run in goroutines; every
@@ -863,7 +865,7 @@ An agent must not break these:
 - **The product name and the code name are different strings, and only one of
   them has an owner.** The application ships in Bluefin as **Control Center**;
   ChairLift remains the code name for the repository, the Go module, the
-  binaries, the wrapper, the package names, and the `io.projectbluefin.chairlift`
+  binaries, the wrapper, the release archive, and the `io.projectbluefin.chairlift`
   application ID. That ID is fixed by the polkit `exec.path` annotations and the
   install prefix, so it never moves (ADR-0012). Every user-visible spelling of
   the product name resolves through `internal/branding.AppName` — window title,

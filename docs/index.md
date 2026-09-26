@@ -95,30 +95,36 @@ All are built with `CGO_ENABLED=0`.
 
 ### Installation
 
+Control Center is distributed through Homebrew only: the cask installs the
+GoReleaser release archive, `chairlift_<version>_linux_<arch>.tar.gz`. There
+are no deb, rpm, or apk packages.
+
+The Homebrew cask installs in user scope and cannot place root-owned files, so
+the same archive also carries the privileged pieces: `chairlift-updex-helper`,
+`chairlift-ublue-helper`, the bootc, updex, and ublue PolicyKit policies in `data/`,
+`config.yml`, and `channels.example.yml`. An OS image that wants the
+privileged features installs, from that archive, the helpers at
+`/usr/bin/chairlift-updex-helper` and `/usr/bin/chairlift-ublue-helper` and the
+policies at
+`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.bootc.policy`,
+`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.updex.policy`, and
+`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.ublue.policy`. Bootc
+staging additionally requires the image to provide its trusted implementation
+at `/usr/libexec/bootc-update-stage`; ChairLift does not supply one.
+
+From a source checkout:
+
 ```bash
 sudo make install
 ```
 
 Installs binaries, desktop file, icons, PolicyKit policies, both privileged
-helpers, and maintainer configuration defaults to `PREFIX` (default `/usr`).
-The maintainer configuration is installed at `/usr/share/chairlift/config.yml`;
-`/etc/chairlift/config.yml` is reserved for administrator overrides and is
-never created or overwritten by ChairLift's source or nFPM packages. PolicyKit
-integration requires the default prefix.
-
-For distributions that install the GUI through a user-scoped Homebrew cask,
-releases also provide a `projectbluefin-chairlift-system-integration` deb/rpm/apk.
-It installs the fixed helper binaries at `/usr/bin/chairlift-updex-helper` and
-`/usr/bin/chairlift-ublue-helper`; the three policies
-`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.bootc.policy`,
-`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.updex.policy`, and
-`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.ublue.policy`;
-`/usr/share/chairlift/config.yml`; and the documented channel-table example at
-`/usr/share/doc/chairlift/channels.example.yml`, without installing the GUI. It
-intentionally conflicts with the self-contained `projectbluefin-chairlift`
-package. Bootc staging additionally requires the distribution to provide its
-trusted implementation at `/usr/libexec/bootc-update-stage`; the integration
-package does not supply one.
+helpers, maintainer configuration defaults, and the documented channel-table
+example (`/usr/share/doc/chairlift/channels.example.yml`) to `PREFIX`
+(default `/usr`). The maintainer configuration is installed at
+`/usr/share/chairlift/config.yml`; `/etc/chairlift/config.yml` is reserved for
+administrator overrides and is never created or overwritten by ChairLift's
+install paths. PolicyKit integration requires the default prefix.
 
 ### Development
 

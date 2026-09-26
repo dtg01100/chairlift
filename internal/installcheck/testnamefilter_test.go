@@ -40,11 +40,11 @@ import (
 //
 // It is not hypothetical. When this gate was written it found nine such tests
 // across five packages — distrobox, gaming, version, installcheck, and a
-// since-removed OS update provider — including TestGoreleaserPublishesSystemIntegrationPackage,
-// the test AGENTS.md and docs/adr/0006 both name as the enforcement for the
-// system-integration package split. Its name matched the `-skip "Integration"`
-// half of the filter, so the unit-test step never selected it. All nine were
-// renamed; all nine pass.
+// since-removed OS update provider — including a since-removed goreleaser
+// packaging test that AGENTS.md cited as enforcement. Its name contained
+// `Integration`, which matched the `-skip "Integration"` half of the filter,
+// so the unit-test step never selected it. All nine were renamed; all nine
+// pass.
 //
 // Prefer renaming so the first letter after `Test` names the subject
 // (`TestValidConfigRejectsUnknownGroup`, not `TestIsValidRejectsUnknownGroup`).

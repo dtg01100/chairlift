@@ -1299,11 +1299,11 @@ rows), while dry-run previews restore their controls without changing either.
 ### Privileged operations
 
 Decision records: [ADR-0001](../adr/0001-fixed-path-pkexec-privilege-boundary.md)
-(the fixed-path pkexec boundary and helper argv re-validation),
+(the fixed-path pkexec boundary and helper argv re-validation) and
 [ADR-0002](../adr/0002-usr-prefix-is-the-only-supported-install-prefix.md)
-(`PREFIX=/usr`), and
-[ADR-0006](../adr/0006-split-system-integration-package-with-mutual-conflicts.md)
-(the system-integration package split).
+(`PREFIX=/usr`). ADR-0006's two-package split is superseded: ChairLift ships
+only the release archive described under "Privileged integration delivery"
+below.
 
 bootc staging, updex, and Bluefin-family system operations
 require root for state-changing operations. They invoke commands through
@@ -1805,7 +1805,7 @@ mapping the GUI did not read. The file configures release channels under
 base image registry path to supported driver flavours (`standard` required,
 `nvidia`, `nvidia-open`) and their published streams.
 `channels.example.yml` documents both formats and is installed to
-`/usr/share/doc/chairlift/`; no live table is ever packaged.
+`/usr/share/doc/chairlift/`; no live table is ever installed or archived.
 
 Separately, `polkitd` reads application policies from the fixed directory
 `/usr/share/polkit-1/actions` — not `$XDG_DATA_DIRS`, not any
@@ -1813,30 +1813,32 @@ Separately, `polkitd` reads application policies from the fixed directory
 require `PREFIX=/usr` (the default since issue #59) for a source install's
 polkit assets to land somewhere polkit actually looks. These constraints are
 system facts, not values ChairLift decides; the Makefile and
-`internal/updex.HelperPath` exist to conform to them, matching the layout
-`.goreleaser.yaml`'s nFPM packages already use.
+`internal/updex.HelperPath` exist to conform to them.
 
-**System-integration delivery:** GoReleaser publishes two mutually exclusive
-package shapes. `projectbluefin-chairlift` is the existing self-contained package
-with the GUI binary, both privileged helper binaries, desktop assets,
-maintainer config, the channel-table example, and policies. The
-`projectbluefin-chairlift-system-integration` package is the root-owned companion
-for a user-scoped GUI delivery such as the Homebrew cask: its build filter
-contains only `chairlift-updex-helper` and `chairlift-ublue-helper`, and its
-contents contain these installed paths: `/usr/bin/chairlift-updex-helper`,
-`/usr/bin/chairlift-ublue-helper`,
+**Privileged integration delivery:** ChairLift is distributed only through
+Homebrew. The cask installs GoReleaser's release archive,
+`chairlift_<version>_linux_<arch>.tar.gz`, in user scope; there are no deb,
+rpm, or apk packages. Because a user-scoped cask cannot place root-owned
+files, the same archive carries the privileged pieces:
+`chairlift-updex-helper`, `chairlift-ublue-helper`, and the bootc, updex, and
+ublue PolicyKit policies in `data/`, together with `config.yml`,
+`channels.example.yml`, the desktop entry, the wrapper, and every GSettings
+schema XML. An OS image that wants the privileged features installs the
+helpers at `/usr/bin/chairlift-updex-helper` and
+`/usr/bin/chairlift-ublue-helper`, and the policies at
 `/usr/share/polkit-1/actions/io.projectbluefin.chairlift.bootc.policy`,
-`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.updex.policy`,
-`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.ublue.policy`,
-`/usr/share/chairlift/config.yml`, and
-`/usr/share/doc/chairlift/channels.example.yml`. The packages declare conflicts
-because they intentionally own the same privileged files.
+`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.updex.policy`, and
+`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.ublue.policy`, from
+that archive. Those are the paths the helper constants and the policies'
+`org.freedesktop.policykit.exec.path` annotations name, so the image must use
+exactly them. `make install` places the same files at the same paths for a
+source install, puts the schemas in `/usr/share/glib-2.0/schemas/`, and
+compiles the schema cache on a direct install.
+Verified 2026-09-26 in `ghcr.io/projectbluefin/dakota:testing`, as root, with
+`--dry-run`: every ublue helper command produced the correct argv, and the
+ublue policy is valid XML.
 
-Release tarballs also include the Livery GSettings XML schema; nFPM packages
-and `make install` place it in `/usr/share/glib-2.0/schemas/` and compile the
-schema cache during installation.
-
-The integration package does **not** ship `bootc-update-stage`. That
+The archive does **not** ship `bootc-update-stage`. That
 operation is distro policy, so an image that enables `bootc_updates_group`
 must provide a trusted implementation at the existing fixed
 `/usr/libexec/bootc-update-stage` path. Keeping the path fixed preserves the
@@ -1939,8 +1941,8 @@ Decision records: [ADR-0003](../adr/0003-two-tier-config-with-fail-closed-semant
 ### Config file search order
 
 1. `/etc/chairlift/config.yml` — system-wide (highest priority)
-2. `/usr/share/chairlift/config.yml` — package-maintainer defaults installed
-   by both source `make install` and nFPM packages
+2. `/usr/share/chairlift/config.yml` — maintainer defaults installed by
+   source `make install`, or by an OS image from the release archive
 3. `config.dev.yml` — source-checkout fallback, beside the executable when
    present, otherwise relative to the current working directory
 4. `config.yml` — legacy development fallback, beside the executable when
@@ -1996,6 +1998,7 @@ is handled by the migration described above, not a current System namespace.
 - **CI mirror**: `make ci` runs every host-independent gate from `.github/workflows/test.yml` in fail-fast order — go.mod tidy check, `go vet`, gofmt check, `golangci-lint`, unit tests (`./internal/...` under `-run "^Test[^I]" -skip "Integration"`), the race detector, and the build. Its build step reproduces CI's `linux/amd64` + `linux/arm64` matrix into `build/ci-linux-<arch>/` before rebuilding natively, so a compile failure on the non-host architecture cannot pass locally. The mill's deep gate (`.mill.toml`) calls this target. Codecov's remote project status additionally rejects coverage regressions greater than one percentage point, with no fixed project or patch target; it cannot be mirrored locally. The runtime-dependent E2E job is deliberately separate: `make e2e` builds all three binaries, executes the application's `--help` path, boots the dry-run GTK window under a private D-Bus/Xvfb session, polls all three readiness markers for at most 30 seconds, requires one second of post-readiness stability, then terminates its private process group and waits for every surviving member of it to exit before Go removes the temporary `HOME` those workers write into, stages the real `make install` layout under a temporary `DESTDIR`, and executes the staged helper binaries' rejection paths. Its Go test package lives at `test/e2e`, imports no puregotk package, and is enforced by that explicit target rather than the `./internal/...` unit-test filter. The readiness markers are a log-line contract — decision record [ADR-0008](../adr/0008-e2e-readiness-is-a-log-marker-contract.md). `make e2e-atspi` runs the behave AT-SPI suite (`test/e2e/features/`, gated by `TestATSPIBehaveSuite` in `test/e2e/atspi_behave_test.go` and run by `test/e2e/run_atspi.sh`) inside `ghcr.io/projectbluefin/dakota:testing` via `test/e2e/dakota_atspi.sh`; `make e2e` skips that test because what the tree announces depends on the GTK/Libadwaita release (Ubuntu's Libadwaita 1.5 publishes preference groups differently from what Bluefin ships). The suite follows projectbluefin/testsuite's behave + dogtail shape against a private Xvfb display instead of a GNOME Shell VM. `features/environment.py` launches a fresh `--dry-run` ChairLift per scenario with its own HOME, XDG_RUNTIME_DIR, configuration fixture (`@config.<name>`, default `everything`, written as `config.dev.yml` beside a staged copy of the binary) and `$CHAIRLIFT_ACTION_JOURNAL`, so a step can assert which privileged command a click would have run without running it. Readiness still comes from the three log markers (ADR-0008); the accessibility bridge is enabled only inside the run's own private D-Bus session, the one place the suite departs from the walkthrough's deliberately a11y-free environment. The page and shortcut inventories arrive from `internal/navigation` as `CHAIRLIFT_NAVIGATION`/`CHAIRLIFT_SHORTCUTS`, so the suite cannot drift from them. Shared steps live in `features/steps/common.py`, tree helpers in `features/lib/chairlift_atspi.py`, prelaunch stubs in `features/fixtures/stubs*.py`; `TestATSPIFeaturesHaveNoUndefinedSteps` catches an undefined or ambiguous step without a display. The test, release, and nightly workflows install the host runtime through `.github/actions/e2e-runtime` (apt packages plus a venv from `test/e2e/requirements-atspi.txt`, pinned to testsuite's behave, for the dry-run step check), then `brew install xorg-server` for an Xvfb the container can execute and run `make e2e-atspi`; the script sets `CHAIRLIFT_REQUIRE_ATSPI=1`, which turns a missing stack from a skip into a failure, and masks `/usr/share/chairlift`. The E2E job uploads `atspi-results` (JUnit, logs, and accessibility-tree dumps plus screenshots for failed scenarios).
 - **Dev build**: `make dev` builds with `CGO_ENABLED=1` and `-race` flag for race detection
 - **Version**: Set via ldflags by goreleaser (`buildVersion`)
+- **Distribution**: Homebrew only — the cask installs the release archive; GoReleaser builds no deb, rpm, or apk packages
 - **Semantic versioning**: Uses [svu](https://github.com/caarlos0/svu) via `make bump`
 - **CI**: GitHub Actions workflows for test and release (`.github/workflows/`);
   the release workflow (`.github/workflows/release.yml`, job `goreleaser`) runs

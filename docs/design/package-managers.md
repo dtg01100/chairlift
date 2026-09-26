@@ -915,45 +915,44 @@ The Features page's per-feature switch (`onFeatureToggled`, `internal/views/feat
 ## Install-path consistency (`internal/installcheck`)
 
 The source `make install` path (Makefile, `PREFIX` defaulting to `/usr`) and
-the two packaged nFPM (deb/rpm/apk) layouts GoReleaser builds from
-`.goreleaser.yaml` ship this repository's privileged surface and maintainer
-configuration. They are hand-maintained text — a Makefile recipe and YAML
-blocks — with no shared code path, so nothing stops them (or
-`internal/updex.HelperPath`, the fixed absolute path `pkexec` matches against
-the policy's `exec.path` annotation) from silently drifting apart.
+the release archive GoReleaser builds from `.goreleaser.yaml` ship this
+repository's privileged surface and maintainer configuration. ChairLift is
+distributed only through Homebrew: the cask installs that archive,
+`chairlift_<version>_linux_<arch>.tar.gz`, and there are no deb, rpm, or apk
+packages. They are hand-maintained text — a Makefile recipe and a YAML file
+list — with no shared code path, so nothing stops them (or
+`internal/updex.HelperPath` and `internal/ublue.HelperPath`, the fixed absolute
+paths `pkexec` matches against the policies' `exec.path` annotations) from
+silently drifting apart.
 
-ChairLift packages the bootc, updex, and ublue `.policy` files. It
+ChairLift ships the bootc, updex, and ublue `.policy` files. It
 no longer ships its old `.rules` files, which returned `YES` for every active
 local member of the `sudo` group and bypassed authentication. Source
-installation explicitly removes those legacy rule paths; package upgrades
-remove them as obsolete tracked files. Every policy uses normal
+installation explicitly removes those legacy rule paths. Every policy uses normal
 administrator authentication. The updex and ublue policies select one action for
 each supported first argument, and the helpers validate the complete argv shape.
 
-Every install layout installs the repository's `config.yml` as package-owned
-maintainer defaults at `/usr/share/chairlift/config.yml`. None installs
+`make install` installs the repository's `config.yml` as maintainer defaults at
+`/usr/share/chairlift/config.yml`, and never installs
 `/etc/chairlift/config.yml`: that higher-precedence path belongs to the
-administrator and must survive package installation and upgrades unchanged.
+administrator and must survive installation and upgrades unchanged.
 
-GoReleaser has two nFPM entries. `projectbluefin-chairlift` is self-contained and
-selects the `chairlift`, `chairlift-updex-helper`, and
-`chairlift-ublue-helper` builds. `projectbluefin-chairlift-system-integration`
-selects both helper builds and packages only `/usr/bin/chairlift-updex-helper`,
-`/usr/bin/chairlift-ublue-helper`,
+The Homebrew cask installs in user scope and cannot place root-owned files, so
+the release archive also carries the privileged pieces: both helper binaries
+(`chairlift-updex-helper`, `chairlift-ublue-helper`), the three PolicyKit
+policies in `data/`, `config.yml`, and `channels.example.yml`. An OS image that
+wants the privileged features installs, from that archive, the helpers at
+`/usr/bin/chairlift-updex-helper` and `/usr/bin/chairlift-ublue-helper` and the
+policies at
 `/usr/share/polkit-1/actions/io.projectbluefin.chairlift.bootc.policy`,
-`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.updex.policy`,
-`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.ublue.policy`,
-`/usr/share/chairlift/config.yml`, and the channel-table example at
-`/usr/share/doc/chairlift/channels.example.yml`, for pairing with a user-scoped
-app installation. The two package names conflict to
-prevent simultaneous ownership of the same fixed system files. The companion
-does not provide the OS stager; a distro must provide a trusted implementation at
-`/usr/libexec/bootc-update-stage`. This split is decision
-record [ADR-0006](../adr/0006-split-system-integration-package-with-mutual-conflicts.md).
+`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.updex.policy`, and
+`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.ublue.policy`, and
+provides its own trusted stager at `/usr/libexec/bootc-update-stage`; ChairLift
+does not ship one. The two-package split ADR-0006 recorded is superseded.
 
 `internal/installcheck` holds regression tests, not production code, that turn
 "verified by inspection" into real, gated checks. The first two guard the
-installed layout itself:
+installed layout and the archive's inventory:
 
 - **`TestMakefileInstallUsesUsrPrefix`** runs `make -n install
   DESTDIR=<t.TempDir()>` — a dry run, so no compilation, no writes outside
@@ -975,70 +974,46 @@ installed layout itself:
   output. If `make` is not installed, the check skips with an explicit
   diagnostic; when `make` is available, command or layout failures remain hard
   failures.
-- **`TestGoreleaserNfpmLayoutMatchesUsrPrefix`** parses the real, repo-root
-  `.goreleaser.yaml` (not a fixture) with the already-vendored
-  `gopkg.in/yaml.v3` and, iterating **every** `nfpms[]` entry (not just
-  `nfpms[0]`, so adding or reordering a second package with the wrong layout
-  still fails — per
-  `docs/skills/collection-regressions/SKILL.md`),
-  asserts each entry's `bindir` matches the fixed helper directory, its
-  updex/ublue/bootc policy `contents[].dst` entries equal the fixed
-  polkit-1 actions paths, their policy/config modes remain `0644`, and no
-  `.rules` content remains. It also requires every package to
-  map the repository `config.yml` to
-  `/usr/share/chairlift/config.yml` and rejects any content entry targeting
-  `/etc/chairlift/config.yml`.
-- **`TestGoreleaserPublishesTheSystemCompanionPackage`** requires exactly one
-  full package and one integration package, verifies their build filters,
-  mutual conflicts, unique IDs, and the integration package's exact six
-  content mappings. This prevents the companion from accidentally acquiring
-  the GUI binary or losing one of the root-owned integration files.
-  It was named `TestGoreleaserPublishesSystemIntegrationPackage` until
-  2026-09-18 — the name ADR-0006 records, and the one still correct as that
-  decision's historical context. `Integration` in the name matched the
-  `-skip "Integration"` half of the filter described below, so despite being
-  cited by AGENTS.md and the ADR as the enforcement for the
-  system-integration split, the filtered unit-test step never selected it. Renaming it
-  was the fix; `internal/installcheck`'s
-  `TestNoInternalTestNameIsExcludedByTheCIFilter` now rejects any test under
-  `internal/` that the filter would drop, so no other gate can be silently
-  inert the same way.
+- **`TestGoreleaserArchivesCarryTheInstallSurface`** parses the real,
+  repo-root `.goreleaser.yaml` (not a fixture) with the already-vendored
+  `gopkg.in/yaml.v3` and, iterating **every** `archives[]` entry (not just
+  `archives[0]`, so adding or reordering a second archive that drops a file
+  still fails — per `docs/skills/collection-regressions/SKILL.md`), asserts
+  each archive carries the GUI and both helpers — built under the exact file
+  names `filepath.Base(updex.HelperPath)` and `filepath.Base(ublue.HelperPath)`
+  and not filtered out by the archive's `ids` — plus `LICENSE`, `config.yml`,
+  `channels.example.yml`, the wrapper, the desktop entry, and all three
+  policies. It rejects any `.rules` file and any live channel table in an
+  archive. `TestGoreleaserArchivesShipAllSchemas` holds every archive to every
+  `data/*.gschema.xml`, and `TestEveryCommittedExampleConfigIsShipped` holds
+  both the Makefile and every archive to each committed example config.
 
-Both tests fail — not skip — if `internal/updex.HelperPath`, the Makefile's
-`PREFIX` default, or `.goreleaser.yaml`'s `nfpms` block change independently
-of one another; each was hand-verified during development by reverting one
-of the three at a time and confirming only the test(s) that source depends
-on turn red. The package imports no puregotk, directly or transitively, so it
-never trips `docs/skills/gtk-headless-testing/SKILL.md`'s constraint, and it
-lives under `internal/...` so `gates_chunk`, `make ci`, and CI's identical
-`go test ./internal/... -run "^Test[^I]" -skip "Integration"` filter all
-exercise it on every run, per
+A regression test named `TestGoreleaserPublishesSystemIntegrationPackage`
+once guarded the retired package split. `Integration` in its name matched the
+`-skip "Integration"` half of the filter described below, so the filtered
+unit-test step never selected it; `internal/installcheck`'s
+`TestNoInternalTestNameIsExcludedByTheCIFilter` now rejects any test under
+`internal/` that the filter would drop, so no other gate can be silently
+inert the same way.
+
+These tests fail — not skip — if the helper constants, the Makefile's
+`PREFIX` default, or `.goreleaser.yaml`'s archive file list change
+independently of one another. The package imports no puregotk, directly or
+transitively, so it never trips `docs/skills/gtk-headless-testing/SKILL.md`'s
+constraint, and it lives under `internal/...` so `gates_chunk`, `make ci`, and
+CI's identical `go test ./internal/... -run "^Test[^I]" -skip "Integration"`
+filter all exercise it on every run, per
 `docs/skills/gated-test-placement/SKILL.md` — not just the
 heavier, less-frequent `make ci` deep gate.
 
-A third regression test, **`TestGoreleaserLicenseIsGPL`**, guards a related
-but distinct drift: `.goreleaser.yaml` briefly declared `license: MIT` in
-both its top-level `metadata:` block and its `nfpms[]` entry's `license`
-field, while the project's actual license is GPLv3-or-later (`LICENSE`, and
-`internal/window/window.go`'s about dialog, which sets
-`gtk.LicenseGpl30Value` — puregotk's "GPL 3.0 or later" enum value, distinct
-from `LicenseGpl30OnlyValue`). Like the layout test above, it parses the
-real, repo-root `.goreleaser.yaml` via the shared `loadGoreleaserConfig`
-helper (no fixture) and asserts `cfg.Metadata.License` and, iterating
-**every** `nfpms[]` entry with a per-index `t.Run` (not just `nfpms[0]`, per
-`docs/skills/collection-regressions/SKILL.md`),
-each entry's `License` field equal the fixed SPDX identifier
-`GPL-3.0-or-later`. `GoreleaserConfig.Metadata` (`MetadataConfig.License`)
-and `NfpmConfig.License` (`internal/installcheck/installcheck.go`) exist
-specifically to give `yaml.Unmarshal` somewhere to put these two values;
-without those struct fields yaml.v3 silently drops them and the test would
-pass vacuously regardless of what the YAML says. This test exists so a
-future edit reintroducing MIT (or any other license) in either location —
-the exact regression that motivated it — fails the gate instead of shipping
-mislabeled deb/rpm/apk package metadata again.
+The license travels with the archive as the `LICENSE` file, whose text is
+GPLv3 and matches `internal/window/window.go`'s about dialog
+(`gtk.LicenseGpl30Value` — puregotk's "GPL 3.0 or later" enum value, distinct
+from `LicenseGpl30OnlyValue`). GoReleaser OSS has no `metadata.license`
+field, so there is no second license string in `.goreleaser.yaml` to drift.
 
-A fourth regression test guards the same class of drift for the
-**repository URL**. GoReleaser OSS (unlike Pro) has no global `metadata:`
+A further regression test guards the **repository URL**. GoReleaser OSS
+(unlike Pro) has no global `metadata:`
 block and therefore no `metadata.homepage` to template a field from, so
 `.goreleaser.yaml`'s `release.footer` carries the repository URL as a literal
 in its "Full Changelog" line — `https://github.com/projectbluefin/chairlift`
@@ -1069,17 +1044,17 @@ rendered value. The footer is a Go template expanded by GoReleaser only at
 release time, and GoReleaser OSS (this config sets no `pro:` block and no
 `nightly:` block) is not installed on the gate host or in `make ci`; it runs
 only in `.github/workflows/release.yml` via `goreleaser-action` with the
-default `GITHUB_TOKEN`, which is enough to publish binaries, archives, and the
-rpm/deb/apk nFPM packages straight to the GitHub Release for the tagged
+default `GITHUB_TOKEN`, which is enough to publish binaries and the release
+archives straight to the GitHub Release for the tagged
 commit — no Pro license or `GORELEASER_KEY` secret. Snapshot output is
 governed separately by `.goreleaser.yaml`'s `snapshot:` block
 (`version_template: "{{ .ShortCommit }}-snapshot"`), which sets the version
 template for local `goreleaser release --snapshot` builds; it needs no credentials
 and no workflow, so it is not gated here. `goreleaser check` is therefore
 deliberately not run anywhere — locally, in `gates_chunk`, or in `make ci` —
-and the test neither shells out nor renders anything. As with the license
-guard, `ReleaseConfig.Footer` in `internal/installcheck/installcheck.go` exists
-solely so `yaml.Unmarshal` has somewhere to put the footer value; there is no
+and the test neither shells out nor renders anything. `ReleaseConfig.Footer`
+in `internal/installcheck/installcheck.go` exists solely so `yaml.Unmarshal`
+has somewhere to put the footer value; there is no
 `MetadataConfig.Homepage`, because GoReleaser OSS exposes no `metadata.homepage`
 — without the struct field yaml.v3 drops the footer and the test would pass
 vacuously regardless of what the YAML says.
@@ -1092,36 +1067,6 @@ vacuously regardless of what the YAML says.
 > hardcoded canonical URL in `release.footer`, `GITHUB_TOKEN` in
 > `.github/workflows/release.yml`, and a local `snapshot:` block. The tests and
 > structs above were rewritten to assert the OSS layout rather than the retired Pro one.
-
-A sixth regression test guards the packages' **declared runtime
-dependencies**. Until issue #89 the deb/rpm/apk metadata named no runtime
-dependencies at all, so a minimal target-family image could install the
-full package successfully and then fail to launch it: the GUI dlopens the
-GTK4 and Libadwaita shared libraries at package-init time through puregotk
-(`libgtk-4.so.1`, `libadwaita-1.so.0`), and the desktop entry
-(`data/io.projectbluefin.chairlift.desktop`) always launches
-`/usr/bin/chairlift-wrapper`, a Bash script (`data/chairlift-wrapper.sh`).
-The full `projectbluefin-chairlift` package now declares those dependencies
-per format in GoReleaser's `nfpms[]` `overrides` block, because the distro
-package names differ per format: Debian names `libgtk-4-1` and
-`libadwaita-1-0`, Fedora names `gtk4` and `libadwaita`, and Alpine names
-`gtk4.0` and `libadwaita`, with `bash` in every format. A single
-base-level `dependencies` list would carry one format's name into the other
-two, and GoReleaser's merge of per-format overrides over the base fields
-replaces a non-empty slice rather than appending to it (dario.cat/mergo
-v1.0.2's `WithOverride`, verified against the exact version the release
-workflow pins), so a base list coexisting with a per-format one is silently
-dropped; the test rejects a base-level list outright and pins the exact
-per-format set. The integration package declares none — it
-ships only pure-Go helper binaries and root-owned data files, no GUI,
-desktop entry, or wrapper script, and must stay installable on hosts that
-carry no GTK stack at all. **`TestGoreleaserDeclaresMandatoryRuntimeDependencies`**
-(`internal/installcheck/goreleaser_test.go`) holds both halves via the
-shared `loadGoreleaserConfig` helper: `NfpmConfig.Dependencies` and the
-new `NfpmOverrides` struct in `internal/installcheck/installcheck.go`
-exist so `yaml.Unmarshal` has somewhere to put these values, and the
-negative controls (dropping a per-format entry, adding a base-level list,
-adding a dependency to the integration package) each turn the test red.
 
 Three gates in `navigationschema_test.go` close the page/group contract's last
 unenforced edge. `internal/config` owns the page/group grammar — it derives it

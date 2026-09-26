@@ -20,11 +20,12 @@ persistent toast with the path and cause. Fix the file and restart Control Cente
 If no file is found, built-in defaults apply: all groups are enabled except
 `maintenance_cleanup_group` and `reset_group`.
 
-Source and nFPM installs provide the repository's maintainer defaults at
-`/usr/share/chairlift/config.yml`. Package upgrades may replace that file.
-Administrators should put local changes in `/etc/chairlift/config.yml`, which
-has higher precedence and is never created or overwritten by ChairLift's
-packages.
+Source installs (`make install`) provide the repository's maintainer defaults
+at `/usr/share/chairlift/config.yml`; an OS image may install the release
+archive's `config.yml` there instead. Whoever installs that file may replace it
+on upgrade. Administrators should put local changes in
+`/etc/chairlift/config.yml`, which has higher precedence and is never created
+or overwritten by ChairLift's install paths.
 The repository root includes `config.dev.yml` so source checkouts load
 unprivileged development defaults before the package default `config.yml`.
 
@@ -53,7 +54,7 @@ order below. Help is always retained.
 | Group | Key | Description |
 |-------|-----|-------------|
 | Automatic updates | `automatic_updates_group` | The switch deciding whether this system installs updates on its own schedule; hidden on a host with no unattended-update timer. Updating now is the Updates page's own action and has no config key. |
-| bootc Updates | `bootc_updates_group` | Download and stage the next bootc system image update (applies on restart); shown only when bootc-booted and the fixed `/usr/libexec/bootc-update-stage` helper is present. A distribution must provide a trusted implementation there before enabling this group; ChairLift's system-integration package does not supply one. |
+| bootc Updates | `bootc_updates_group` | Download and stage the next bootc system image update (applies on restart); shown only when bootc-booted and the fixed `/usr/libexec/bootc-update-stage` helper is present. A distribution must provide a trusted implementation there before enabling this group; ChairLift's release archive does not supply one. |
 | Flatpak Updates | `flatpak_updates_group` | Pending Flatpak application updates |
 | Homebrew Updates | `brew_updates_group` | Outdated Homebrew packages with upgrade buttons |
 | Untrusted Taps | `brew_trust_group` | Untrusted Homebrew taps with installed packages (Homebrew 6 tap trust); trust a tap to resume its updates. Shown only when there is something to trust |
@@ -147,8 +148,9 @@ source build has no installed schema — run `make schemas` and export the
 unavailable. An install hits the same condition when it ships the schema XML
 without compiling it where GSettings searches (`/usr/share/glib-2.0/schemas`,
 the `glib-2.0/schemas` directory of any `$XDG_DATA_DIRS` entry, or the user's
-`~/.local/share/glib-2.0/schemas`); the packages' postinstall recompiles the
-system cache, and a Homebrew cask has to compile the user directory itself.
+`~/.local/share/glib-2.0/schemas`); `make install` recompiles the system cache
+for a direct install, and a Homebrew cask has to compile the user directory
+itself.
 
 A failed bundle install reports the cause rather than the progress that
 preceded it: ChairLift reads both of brew's output streams, because

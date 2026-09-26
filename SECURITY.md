@@ -4,8 +4,8 @@
 
 ChairLift is developed for the Bluefin family (Bluefin, Bluefin LTS, Dakota).
 Install the latest
-[release](https://github.com/projectbluefin/chairlift/releases) and keep it
-updated:
+[release](https://github.com/projectbluefin/chairlift/releases) through the
+Homebrew cask, which installs the release archive, and keep it updated:
 
 | Version | Supported      |
 | ------- | -------------- |

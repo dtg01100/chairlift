@@ -28,10 +28,10 @@ BUILD_DIR=build
 
 # Installation directories
 #
-# PREFIX defaults to /usr, matching both the fixed absolute path pkexec
+# PREFIX defaults to /usr, matching the fixed absolute path pkexec
 # matches against PolicyKit's org.freedesktop.policykit.exec.path annotation
-# (data/io.projectbluefin.chairlift.updex.policy, internal/updex.HelperPath) and
-# the layout .goreleaser.yaml's nFPM packages already install to. PolicyKit
+# (data/io.projectbluefin.chairlift.updex.policy, internal/updex.HelperPath),
+# which is also where an OS image places the helpers from the release archive. PolicyKit
 # itself only ever reads actions from /usr/share/polkit-1/actions — it does
 # not consult PREFIX or XDG_DATA_DIRS — so installing under any other PREFIX
 # means the .policy files land somewhere polkit never looks. Override PREFIX
@@ -39,7 +39,7 @@ BUILD_DIR=build
 # `make install PREFIX=$$HOME/.local`), but understand that the
 # PolicyKit-authenticated updex helper path then no longer resolves to the
 # fixed exec.path annotation. DESTDIR (below) still layers under PREFIX
-# unchanged, for staged/packaged installs.
+# unchanged, for staged installs such as an OS image build.
 PREFIX ?= /usr
 BINDIR = $(PREFIX)/bin
 DATADIR = $(PREFIX)/share
@@ -218,10 +218,10 @@ install: build
 	install -Dm644 data/io.projectbluefin.chairlift.firstrun.gschema.xml $(DESTDIR)$(SCHEMASDIR)/io.projectbluefin.chairlift.firstrun.gschema.xml
 	# Only for a direct install. Under DESTDIR the tree is a staging area
 	# holding these schemas alone, so compiling there would produce a
-	# gschemas.compiled containing only ChairLift's schemas — and a package
+	# gschemas.compiled containing only ChairLift's schemas — and an image
 	# shipping that file would overwrite the system cache and break GSettings
-	# for every other application. Packages run glib-compile-schemas from
-	# their postinstall scriptlet instead; see packaging/postinstall.sh.
+	# for every other application. Whoever assembles the staged tree runs
+	# glib-compile-schemas over the complete schema directory instead.
 	@if [ -z "$(DESTDIR)" ]; then glib-compile-schemas $(SCHEMASDIR); fi
 	# Install desktop file
 	install -Dm644 data/io.projectbluefin.chairlift.desktop $(DESTDIR)$(APPLICATIONSDIR)/io.projectbluefin.chairlift.desktop

@@ -15,9 +15,9 @@ import (
 	"github.com/projectbluefin/chairlift/internal/branding"
 )
 
-// desktopEntryPath is the desktop entry the Makefile and every nfpm package
-// install. Its basename is the application ID and must not change; only the
-// display keys inside it carry the product name.
+// desktopEntryPath is the desktop entry the Makefile installs and every
+// release archive carries. Its basename is the application ID and must not
+// change; only the display keys inside it carry the product name.
 const desktopEntryPath = "data/io.projectbluefin.chairlift.desktop"
 
 // codeNameExemptions are the exact string literals permitted to spell the code
