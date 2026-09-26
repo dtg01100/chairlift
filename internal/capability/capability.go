@@ -64,6 +64,13 @@ const (
 	Homebrew Capability = "brew"
 	// Distrobox is the distrobox command on $PATH.
 	Distrobox Capability = "distrobox"
+	// Podman is the podman command on $PATH. It is the prerequisite of the
+	// printer applications group: each application is a rootless quadlet,
+	// which is a Podman feature, so without Podman there is nothing for
+	// the group to install into. Whether the user's systemd manager is
+	// running is a runtime state, not a capability, and stays with the
+	// group's own readiness probe.
+	Podman Capability = "podman"
 	// BootcStage is the installed OS staging script internal/bootc invokes
 	// through pkexec. It is the prerequisite of the bootc updates group: a
 	// host with the bootc command but no stage script has nothing for that
@@ -84,6 +91,7 @@ var pathCapabilities = []struct {
 }{
 	{Flatpak, "flatpak"},
 	{Distrobox, "distrobox"},
+	{Podman, "podman"},
 }
 
 // assetCapabilities pairs every capability provided by a fixed path with the
@@ -251,6 +259,7 @@ var prerequisites = []Prerequisite{
 	{Page: "features_page", Group: "dx_group", AnyOf: []Capability{ImageDescriptor}},
 	{Page: "features_page", Group: "features_group"},
 	{Page: "features_page", Group: "gaming_group", AnyOf: []Capability{ImageDescriptor}},
+	{Page: "features_page", Group: "printers_group", AnyOf: []Capability{Podman}},
 	{Page: "help_page", Group: "troubleshooting_group", AnyOf: []Capability{Homebrew}},
 
 	// Livery.

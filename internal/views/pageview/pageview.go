@@ -159,19 +159,22 @@ func FeatureGroupDescription(count int) string {
 
 // FeaturesEmptyState decides whether the Features page must explain that it
 // offers nothing, and with what text. The page is otherwise blank on a host
-// with no ublue-os image descriptor (so no Developer or Gaming group) and no
-// optional features for updex to list, which reads as a broken page rather
-// than an answer. bluefinGroups is whether any Developer or Gaming group was
-// built; optionalFeatures is whether the optional-features group is (or may
-// still become) visible — a group still checking, or one that could not
-// check, is itself an explanation.
-func FeaturesEmptyState(bluefinGroups, optionalFeatures bool) (Row, bool) {
-	if bluefinGroups || optionalFeatures {
+// with no ublue-os image descriptor (so no Developer or Gaming group), no
+// Podman (so no Printers group), and no optional features for updex to list,
+// which reads as a broken page rather than an answer. bluefinGroups is
+// whether any Developer or Gaming group was built; printers is whether the
+// Printers group was built — its rows may all be locked, but a locked switch
+// that says why is an offering, not an empty page; optionalFeatures is
+// whether the optional-features group is (or may still become) visible — a
+// group still checking, or one that could not check, is itself an
+// explanation.
+func FeaturesEmptyState(bluefinGroups, printers, optionalFeatures bool) (Row, bool) {
+	if bluefinGroups || printers || optionalFeatures {
 		return Row{}, false
 	}
 	return Row{
 		Title:    "Nothing to set up here",
-		Subtitle: "This system does not offer developer tools, gaming apps, or optional features that can be set up from this page.",
+		Subtitle: "This system does not offer developer tools, gaming apps, printers, or optional features that can be set up from this page.",
 	}, true
 }
 

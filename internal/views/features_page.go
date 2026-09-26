@@ -78,17 +78,24 @@ func (uh *UserHome) buildFeaturesPage() {
 
 	bluefinGroups := uh.buildBluefinGroups(page)
 
-	// A host that offers nothing here — no ublue-os descriptor and no
-	// optional features — would otherwise show a blank page. The empty
-	// state starts hidden and is revealed only once nothing is known to be
-	// on offer.
+	// Printer applications sit under Developer and Gaming: like them they
+	// are capabilities you turn on, and each is a user-scope service.
+	printers := uh.groupEnabled("features_page", "printers_group")
+	if printers {
+		uh.buildPrintersGroup(page)
+	}
+
+	// A host that offers nothing here — no ublue-os descriptor, no Podman,
+	// and no optional features — would otherwise show a blank page. The
+	// empty state starts hidden and is revealed only once nothing is known
+	// to be on offer.
 	emptyState := adw.NewStatusPage()
 	emptyState.SetIconName("preferences-other-symbolic")
 	emptyGroup := adw.NewPreferencesGroup()
 	emptyGroup.Add(&emptyState.Widget)
 	emptyGroup.SetVisible(false)
 	showEmptyState := func(optionalFeatures bool) {
-		text, empty := pageview.FeaturesEmptyState(bluefinGroups, optionalFeatures)
+		text, empty := pageview.FeaturesEmptyState(bluefinGroups, printers, optionalFeatures)
 		if empty {
 			emptyState.SetTitle(text.Title)
 			emptyState.SetDescription(text.Subtitle)

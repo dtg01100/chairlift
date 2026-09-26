@@ -1,11 +1,13 @@
 @features
-Feature: Features page — Developer tools, Gaming, and the Custom Command Menu
+Feature: Features page — Developer tools, Gaming, Printers, and the Custom Command Menu
   The Features page switches on capabilities of a Bluefin-family system.
   Developer tools is a privileged change through the fixed ublue helper;
   Gaming installs user-scope Flatpaks with no privilege at all; Developer
-  Mode also drives the Custom Command Menu's developer entries. The
-  application always runs with --dry-run here, so every switch must preview
-  its change, run nothing, and come back to the state it restored on load.
+  Mode also drives the Custom Command Menu's developer entries; Printers is
+  one rootless quadlet per driver family, driven with systemctl --user and
+  equally unprivileged. The application always runs with --dry-run here, so
+  every switch must preview its change, run nothing, and come back to the
+  state it restored on load.
 
   Updex's "Optional features" group is not covered: updex reads feature
   definitions only from root-owned sysupdate.d directories, which neither the
@@ -163,9 +165,61 @@ Feature: Features page — Developer tools, Gaming, and the Custom Command Menu
     And the application log contains "dx_group=false gaming_group=true"
 
   @stub.features-no-descriptor @stub.features-gaming-none
+  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,brew,bootc-stage
   Scenario: A host with nothing to offer does not advertise a blank Features page
     Given ChairLift is running
     Then the Features destination is hidden or says why it offers nothing
     And I see "Nothing to set up here"
-    And I see "This system does not offer developer tools, gaming apps, or optional features that can be set up from this page."
+    And I see "This system does not offer developer tools, gaming apps, printers, or optional features that can be set up from this page."
     And the application log contains "views: features page offers nothing on this system"
+
+  # ------------------------------------------------------------ Printers
+  #
+  # ADR-0016: a printer application may be enabled only when its web
+  # administration is authenticated or absent. No published image accepts
+  # that setting yet, so every family is an actionable, non-enabled state:
+  # the row is shown, its switch is off and locked, and the subtitle says
+  # what is needed. Rendering the group runs nothing and writes nothing.
+
+  @stub.printers @stub.features-gaming-none
+  Scenario: Every printer family is shown locked until its image can secure its administration page
+    Given ChairLift is running
+    When I open the "Features" page
+    Then the Features page shows a "Printers" group
+    And the Printers group offers exactly these rows, each off and locked
+      | row                  |
+      | Ghostscript printers |
+      | HP printers (HPLIP)  |
+      | Gutenprint printers  |
+    And the application log contains "views: printers group built families=3 blocked=3"
+    And systemctl was never run
+    And no printer quadlet was written
+    And the action journal is empty
+
+  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,brew,bootc-stage @stub.features-gaming-none
+  Scenario: Without Podman the Printers group is explained on Help, not shown
+    Given ChairLift is running
+    When I open the "Features" page
+    Then the Features page shows no "Printers" group
+    And I do not see "Ghostscript printers"
+    And the application log does not contain "views: printers group built"
+    When I press "F1"
+    And I ask the Help page why something is missing
+    Then the Help page explains "Printers" with "Needs Podman"
+
+  # Homebrew is withheld so the Help explainer has something to list; the
+  # Printers row must not be among it, because a group the administrator
+  # turned off is not a missing tool.
+  @config.features-no-printers @stub.features-gaming-none
+  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,bootc-stage
+  Scenario: Disabling printers_group in configuration removes the group without calling it missing
+    Given ChairLift is running
+    When I open the "Features" page
+    Then the Features page shows a "Gaming" group
+    And the Features page shows no "Printers" group
+    And I do not see "Ghostscript printers"
+    And the application log does not contain "views: printers group built"
+    When I press "F1"
+    And I ask the Help page why something is missing
+    Then the Help page explains "Agent Mode" with "Needs Homebrew"
+    And the Help page does not call "Printers" missing

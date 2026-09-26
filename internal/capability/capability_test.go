@@ -51,7 +51,7 @@ func fakeHost(binaries, assets []string) Probe {
 // allBinaries and allAssets are the complete probe answers for a host that has
 // everything.
 var (
-	allBinaries = []string{"flatpak", "distrobox"}
+	allBinaries = []string{"flatpak", "distrobox", "podman"}
 	allAssets   = []string{
 		bootc.StageScriptPath,
 		imageinfo.DescriptorPath,
@@ -96,6 +96,11 @@ func TestDetectWithResolvesEveryCapability(t *testing.T) {
 			name:  "distrobox on PATH",
 			probe: fakeHost([]string{"distrobox"}, nil),
 			want:  Set{Distrobox: true},
+		},
+		{
+			name:  "podman on PATH",
+			probe: fakeHost([]string{"podman"}, nil),
+			want:  Set{Podman: true},
 		},
 		{
 			name:  "bootc stage script installed",

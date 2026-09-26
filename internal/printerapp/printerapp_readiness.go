@@ -1,0 +1,139 @@
+package printerapp
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"time"
+)
+
+// State is one printer application's lifecycle state as the Features page
+// shows it. It is the printer port of aistack.State, with one addition:
+// Blocked, the ADR-0016 condition, so a family whose image cannot be given
+// an administration credential renders as an actionable non-enabled state
+// rather than as a switch that refuses when flipped.
+type State int
+
+const (
+	// StateUnavailable: this host cannot run printer applications (no
+	// Podman, so no quadlet to install into).
+	StateUnavailable State = iota
+	// StateBlocked: the family may not be enabled because its image cannot
+	// be handed an administration setting (CanEnable returned an error) and
+	// no unit is installed. The switch is off and locked.
+	StateBlocked
+	// StateOff: enableable, and ChairLift's unit is not installed.
+	StateOff
+	// StateStarting: the unit is installed and the service is either not
+	// yet checked or reported activating.
+	StateStarting
+	// StateReady: the unit is installed and systemd reports the service
+	// active. Its web page and IPP endpoint are on the app's port.
+	StateReady
+	// StateFailed: the unit is installed but the service is not running —
+	// failed, inactive, or the check itself could not be made.
+	StateFailed
+)
+
+// Facts are the observations Resolve derives a State from.
+type Facts struct {
+	// Capable is the host capability floor (Podman present).
+	Capable bool
+	// Enableable is CanEnable's answer for the family: the ADR-0016
+	// condition is met.
+	Enableable bool
+	// UnitPresent reports whether ChairLift's quadlet file exists.
+	UnitPresent bool
+	// Checked is true once ProbeActive has answered.
+	Checked bool
+	// Active is systemd's is-active word for the service; meaningful only
+	// when Checked, and empty when the check could not be made.
+	Active string
+}
+
+// Observe returns the non-blocking facts — the unit file's presence and the
+// enable condition — and is safe on the GTK main thread. Readiness is a
+// systemctl query and comes from ProbeActive, off the main thread.
+func Observe(app App, capable bool) Facts {
+	return Facts{
+		Capable:     capable,
+		Enableable:  CanEnable(app.Family) == nil,
+		UnitPresent: IsEnabled(app),
+	}
+}
+
+// ProbeActive asks systemd whether the app's service is running and returns
+// its is-active word: "active", "activating", "inactive", "failed", and so
+// on. systemctl exits non-zero for anything but active, so the exit status
+// is not the answer; the word is. Output that is not a single word is not a
+// state — it is systemctl explaining why it could not answer (no user
+// manager, no bus) — and is returned as the error instead.
+func ProbeActive(ctx context.Context, app App) (string, error) {
+	output, err := runSystemctlOutput(ctx, "is-active", app.ServiceName())
+	word := strings.TrimSpace(output)
+	if word != "" && !strings.ContainsAny(word, " \t\r\n") {
+		return word, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return "", errors.New("systemctl is-active gave no answer")
+}
+
+// settlePoll is how often WaitSettled re-asks while the service is still
+// activating; a seam so the test does not sleep.
+var settlePoll = 2 * time.Second
+
+// WaitSettled probes until the service leaves its transitional states —
+// activating, reloading — or limit elapses, and returns the last word seen.
+// A quadlet's start returns once the container is up, but the image pull
+// that precedes a first start can leave the unit activating for a while;
+// a row that showed "Starting…" forever would be a false indicator of the
+// other kind. The context bounds every probe; a failed probe is returned at
+// once rather than retried, because it is systemctl that could not answer.
+func WaitSettled(ctx context.Context, app App, limit time.Duration) (string, error) {
+	deadline := time.Now().Add(limit)
+	for {
+		word, err := ProbeActive(ctx, app)
+		if err != nil || (word != "activating" && word != "reloading") || !time.Now().Before(deadline) {
+			return word, err
+		}
+		select {
+		case <-ctx.Done():
+			return word, ctx.Err()
+		case <-time.After(settlePoll):
+		}
+	}
+}
+
+// Resolve maps observations to a State. The unit file's presence decides
+// whether the application is on; the is-active word decides whether "on"
+// means running. A unit that is present is never Blocked: the user turned
+// it on, and turning it off must stay possible whatever the image's
+// administration surface is.
+func Resolve(f Facts) State {
+	switch {
+	case !f.Capable:
+		return StateUnavailable
+	case f.UnitPresent && !f.Checked:
+		return StateStarting
+	case f.UnitPresent:
+		switch f.Active {
+		case "active":
+			return StateReady
+		case "activating", "reloading":
+			return StateStarting
+		default:
+			return StateFailed
+		}
+	case !f.Enableable:
+		return StateBlocked
+	default:
+		return StateOff
+	}
+}
+
+// On reports whether the switch should read on in this state.
+func (s State) On() bool {
+	return s == StateStarting || s == StateReady || s == StateFailed
+}

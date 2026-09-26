@@ -674,6 +674,35 @@ An agent must not break these:
   as an argv token, so any local user can read it from `/proc/<pid>/cmdline`
   for the life of that one short-lived process; switching to stdin needs
   llmman support first.
+- **Printer applications are rootless quadlets, locked until their
+  administration is authenticated, and never a false enabled indicator.**
+  `internal/printerapp` writes one `.container` quadlet per driver family
+  under `~/.config/containers/systemd` and drives it with `systemctl --user`
+  in the invoking account; nothing here is privileged, and no `pkexec` route,
+  helper subcommand, or PolicyKit action may be added for it. Each family is
+  a digest-pinned multi-architecture index from the projectbluefin
+  `*-printer-app` repositories, on host networking so IPP and DNS-SD reach
+  the LAN; a pin bump needs the cosign/attestation verification #393 asks for
+  first. ADR-0016 is the enable condition: an application may be enabled only
+  when its web administration is authenticated or absent, and
+  `printerapp.CanEnable` is that condition as a predicate — `Enable` calls
+  it before its dry-run branch, and the Features page's **Printers** group
+  (`printers_group`, floored on the `Podman` capability, i.e. `podman` on
+  `$PATH`; `internal/views/printers_page.go`) renders a refused family as an
+  actionable, non-enabled state: the row is shown, the switch is off *and*
+  insensitive, and the subtitle says the administration page cannot be
+  secured until the image accepts an administrator credential. No published
+  image accepts one yet (ghostscript-printer-app#65, hplip-printer-app#51,
+  gutenprint-printer-app#57), so today every family is locked; do not spell
+  an unshipped environment variable in ChairLift, and do not turn the lock
+  into a hidden group or a switch that fails on every flip. Readiness on the
+  row comes from `printerapp.Observe`/`ProbeActive`/`Resolve` — `systemctl
+  --user is-active`'s state *word*, off the main thread — never from the
+  unit file's presence alone, and a present unit is never locked, so turning
+  a family off always stays possible. A failed disable keeps the unit because
+  the service could not be proven stopped. Hardware behaviour — printing
+  through a device, USB passthrough, mDNS coexistence — is unverified and
+  unwired; say so rather than claim it.
 - **Livery shadows icon-theme names, and the theme it writes into is not
   always hicolor.** GNOME's app-grid button (`view-app-grid-symbolic`), panel
   menu (`PanelIconName(id)`, i.e. `chairlift-livery-<id>-symbolic`, via the

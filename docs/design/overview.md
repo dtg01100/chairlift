@@ -46,6 +46,7 @@ internal/views/                 Page builders and event handlers (one file per p
         ├── internal/updex/     Updex feature manager (Go library reads, helper binary writes)
         ├── internal/updexhelper/ Puregotk-free argv-parsing/Options-building for cmd/chairlift-updex-helper
         ├── internal/devmenu/   Custom Command Menu extension scanner and tuple updater for Terminal and Containers visibility
+        ├── internal/printerapp/ Rootless printer-application quadlets, one per driver family, with the ADR-0016 enable gate and the pure readiness model behind the Features page's Printers group
         ├── internal/ublue/     Bluefin-family system mutations through the ublue helper
         ├── internal/ubluehelper/ Puregotk-free argv parsing for cmd/chairlift-helper
         ├── internal/updateflow/ Pure unified update coordinator and state machine
@@ -88,7 +89,7 @@ this inventory, independently of the original YAML namespace names.
 | Updates | `updates_page.go` | Aggregate updates, provider detail, automatic updates, channel/graphics controls and system version |
 | Apps | `applications_page.go` | Collections, installed Flatpaks, Homebrew inventory/search/export and external catalog launch |
 | Agents | `agents_page.go` | Agent Mode using llmman |
-| Features | `features_page.go` | Distribution features, Developer Mode and Gaming Mode |
+| Features | `features_page.go` (+ `printers_page.go`) | Distribution features, Developer Mode, Gaming Mode, and Printers |
 | Livery | `livery_page.go` | Profile picture and app-grid, panel and Files icon surfaces |
 | Maintenance | `maintenance_page.go` | Free up space, administrator scripts and Recovery entry |
 | Help | `help_page.go` | Troubleshooting, support links and capability explanations |
@@ -146,7 +147,7 @@ go func() {
 
 A group whose backing tool's *presence* is its whole prerequisite (Homebrew, Flatpak, Podman, the image descriptor, the stage scripts) is not deferred at all: `internal/capability` omits it at build time through `UserHome.groupEnabled`, so its loaders never render a "not installed" placeholder. What such a loader can still meet is a tool that is present but fails; that is a real failure and the row says so ("Could not read the list", "Could not check for tool updates") while keeping the last known rows and counts.
 
-A group whose gate is a *query* keeps an asynchronous gate: it is built immediately with a "Checking…" description, a goroutine asks, and the main thread either populates it or hides it (`SetVisible(false)`). It never swaps in an inert "not available" group. This applies to `featuresGroup` (hidden when updex lists no features; a failed listing keeps the group and reports it), the Homebrew untrusted-taps group (hidden unless there is something to trust), and the Livery panel section (hidden when the Custom Command Menu extension's schema is absent). Hiding the optional-features group can leave the Features page with nothing on it — a host with no image descriptor, or with `dx_group` and `gaming_group` both disabled, builds neither the Developer nor the Gaming group — so `buildFeaturesPage` adds a hidden `AdwStatusPage` group whose visibility and text come from `pageview.FeaturesEmptyState(bluefinGroups, optionalFeatures)`. It is evaluated at build time (a still-checking optional-features group counts as on offer) and again when `loadFeatures` hides that group; only when neither kind of group is on offer does it show "Nothing to set up here" and log `views: features page offers nothing on this system`. A failed listing keeps the group, which is itself the explanation, so it never produces the empty state.
+A group whose gate is a *query* keeps an asynchronous gate: it is built immediately with a "Checking…" description, a goroutine asks, and the main thread either populates it or hides it (`SetVisible(false)`). It never swaps in an inert "not available" group. This applies to `featuresGroup` (hidden when updex lists no features; a failed listing keeps the group and reports it), the Homebrew untrusted-taps group (hidden unless there is something to trust), and the Livery panel section (hidden when the Custom Command Menu extension's schema is absent). Hiding the optional-features group can leave the Features page with nothing on it — a host with no image descriptor, or with `dx_group` and `gaming_group` both disabled, builds neither the Developer nor the Gaming group, and one without Podman, or with `printers_group` disabled, builds no Printers group — so `buildFeaturesPage` adds a hidden `AdwStatusPage` group whose visibility and text come from `pageview.FeaturesEmptyState(bluefinGroups, printers, optionalFeatures)`. It is evaluated at build time (a still-checking optional-features group counts as on offer, and so does a Printers group whose switches are all locked: a locked switch that says why is an offering) and again when `loadFeatures` hides that group; only when no kind of group is on offer does it show "Nothing to set up here" and log `views: features page offers nothing on this system`. A failed listing keeps the group, which is itself the explanation, so it never produces the empty state.
 
 The *startup* path must not probe update providers on the main thread. The status-first update shell's initial `Coordinator.Check` runs in a worker (`UpdateShell.StartCheck`), and every provider's `Available` probe — some of which are `sync.Once`-cached subprocess checks, such as `flatpak --version` — is evaluated inside that worker, never while building the page. The automatic-updates group on the Updates page is built as a hidden shell (`buildAutomaticUpdatesGroup`) because its two `systemctl` queries can each approach a multi-second timeout on a slow or wedged host; `loadAutomaticUpdatesGroup` runs `autoupdate.Detect` in a worker under a five-second bound and reveals the switch on the GTK main thread only when the unattended-update timer is installed.
 
@@ -1687,6 +1688,63 @@ button (Enter then applies too); a dry-run save toasts
 `pageview.PeerKeySavedToast(true)`'s preview wording rather than claiming the
 key was saved. The group states that the remote machine must separately turn
 on a non-loopback, authenticated llmman service and open its own firewall.
+
+### Printers (`internal/printerapp`)
+
+`internal/printerapp` is the printer port of `internal/aistack`: one rootless
+quadlet per printer application under `~/.config/containers/systemd`, driven
+with `systemctl --user` in the invoking account, one unit, host port, and
+state volume per app. [ADR-0016](../adr/0016-printer-app-admin-denied-until-authenticated.md)
+is the contract and [printer-applications.md](printer-applications.md) the
+shape. Nothing is privileged: there is no helper subcommand and no PolicyKit
+action, and the package's one exec site is classified unprivileged in
+`internal/installcheck`'s journal-contract inventory.
+
+The Features page renders it as the **Printers** group (`printers_group`,
+`internal/views/printers_page.go`), floored on the `Podman` capability —
+`podman` on `$PATH`, since a quadlet is a Podman feature. One `guardedSwitch`
+row per `printerapp.Families()` entry, titled by `pageview.PrinterFamilyRow`
+and connected once at build time. What the row shows comes from the pure
+readiness model, never from the unit file alone (#331, #361):
+
+- `Observe(app, capable)` is the non-blocking half, safe on the GTK main
+  thread: the unit file's presence and `CanEnable`'s answer.
+- `ProbeActive(ctx, app)` is `systemctl --user is-active <service>`, off the
+  main thread; it returns the state *word*, because systemctl's exit status
+  is non-zero for every word but `active`, and treats multi-word output (no
+  user manager, no bus) as a failed probe rather than a state. `WaitSettled`
+  re-asks, bounded, while the word is `activating`/`reloading`, so a first
+  start's image pull does not leave the row saying "Starting…" forever.
+- `Resolve(Facts)` maps to `StateUnavailable` (no Podman), `StateBlocked`
+  (`CanEnable` refused and no unit), `StateOff`, `StateStarting` (unit, not
+  yet checked or activating), `StateReady` (active — the subtitle names
+  `http://localhost:<port>/`, where PAPPL serves both IPP and the web page),
+  or `StateFailed` (unit present but failed, inactive, or uncheckable). A
+  present unit is never Blocked: the user turned it on, and turning it off
+  must stay possible whatever the image's administration surface.
+
+`CanEnable(Family)` is the ADR-0016 enable condition as a queryable predicate
+— an application may be enabled only when its web administration is
+authenticated or absent — and `Enable` calls it before its dry-run branch, so
+a preview never describes a forbidden change. No published image accepts the
+setting yet (the requests are ghostscript-printer-app#65, hplip-printer-app#51,
+gutenprint-printer-app#57), so today every family resolves to `StateBlocked`:
+the row is shown with its switch off **and insensitive** and
+`pageview.PrinterAppSubtitle` says the administration page cannot be secured
+until the image accepts an administrator credential and that the switch
+unlocks once it does. That is the actionable, non-enabled state the ADR asks
+for — never a false enabled indicator and never a switch that silently does
+nothing — and it encodes no unshipped environment variable. The toggle
+handler (`onPrinterAppToggled`) is admitted by a per-family
+`actionstate.Gate`, runs `Enable`/`Disable` off the main thread under a
+bounded context, and settles the switch from `actionmsg.PrinterApp`: a dry
+run and a failure both restore the switch and the row's last state, a failure
+toasts `pageview.PrinterAppFailureToast`, and a failed disable keeps the unit
+because the service could not be proven stopped. Structured marker:
+`views: printers group built families=<n> blocked=<n>`, asserted by the E2E
+walkthrough and the `@features` AT-SPI scenarios. Hardware behaviour —
+printing through a real device, USB passthrough, mDNS coexistence — remains
+unverified and unwired.
 
 ### Powerwash and Factory Reset
 

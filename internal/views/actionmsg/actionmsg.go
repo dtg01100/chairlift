@@ -534,3 +534,26 @@ func AgentMode(dryRun bool, enable bool) FeatureToggleDecision {
 	}
 	return FeatureToggleDecision{Confirm: true, Toast: "Agent Mode is off. The software and its models were kept."}
 }
+
+// PrinterApp returns the decision for one printer application family's
+// switch on the Features page, after printerapp.Enable or Disable returned
+// nil. rowTitle is the row's own title so three families' toasts read apart.
+// A dry run never confirms: no quadlet was written, started, stopped, or
+// removed. A live disable says the driver image and the printer's settings
+// were kept, because they were — printerapp.Disable removes only the unit.
+func PrinterApp(dryRun bool, enable bool, rowTitle string) FeatureToggleDecision {
+	if dryRun {
+		verb := "turned off"
+		if enable {
+			verb = "turned on"
+		}
+		return FeatureToggleDecision{
+			Confirm: false,
+			Toast:   fmt.Sprintf("[DRY-RUN] Preview: %s would be %s — no changes made", rowTitle, verb),
+		}
+	}
+	if enable {
+		return FeatureToggleDecision{Confirm: true, Toast: rowTitle + " is on."}
+	}
+	return FeatureToggleDecision{Confirm: true, Toast: rowTitle + " is off. The driver and its printer settings were kept."}
+}

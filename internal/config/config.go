@@ -380,6 +380,11 @@ func defaultConfig() *Config {
 			// says it does.
 			"dx_group":     GroupConfig{Enabled: true},
 			"gaming_group": GroupConfig{Enabled: true},
+			// Printer applications: one rootless quadlet per driver family,
+			// floored on Podman by internal/capability. Enabled because the
+			// group does nothing until a switch is turned on, and today no
+			// switch can be (internal/printerapp.CanEnable, ADR-0016).
+			"printers_group": GroupConfig{Enabled: true},
 		},
 		// The panel mark and the Files application mark. Both write only
 		// into the user's own icon theme and dconf, so neither needs a

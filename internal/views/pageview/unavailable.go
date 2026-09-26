@@ -26,6 +26,7 @@ var featureTitles = map[[2]string]string{
 	{"agents_page", "agents_group"}:               "Agent Mode",
 	{"features_page", "dx_group"}:                 "Developer mode",
 	{"features_page", "gaming_group"}:             "Gaming mode",
+	{"features_page", "printers_group"}:           "Printers",
 	{"help_page", "troubleshooting_group"}:        "Enhanced Troubleshooting",
 	{"maintenance_page", "reset_group"}:           "Recovery",
 }
@@ -37,6 +38,7 @@ var capabilityNames = map[capability.Capability]string{
 	capability.Flatpak:         "Flatpak",
 	capability.Homebrew:        "Homebrew",
 	capability.Distrobox:       "Distrobox",
+	capability.Podman:          "Podman",
 	capability.BootcStage:      bootc.StageScriptPath,
 	capability.ImageDescriptor: imageinfo.DescriptorPath,
 }

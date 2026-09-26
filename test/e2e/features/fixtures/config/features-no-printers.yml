@@ -1,0 +1,6 @@
+# Features scenarios: the administrator turned the Printers group off while
+# leaving Developer and Gaming at their defaults. Loaded from an untrusted
+# path; no sudo.
+features_page:
+  printers_group:
+    enabled: false

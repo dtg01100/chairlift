@@ -233,6 +233,9 @@ type UserHome struct {
 	// Features page references
 	featuresGroup *adw.PreferencesGroup
 	featureRows   map[string]*adw.ActionRow
+	// Printer applications (features_page printers_group)
+	printersGroup *adw.PreferencesGroup
+	printerRows   []*printerRow
 
 	// Groups with deferred visibility
 

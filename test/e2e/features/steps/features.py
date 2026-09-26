@@ -1,4 +1,4 @@
-"""Features destination steps: Developer tools, Gaming, Custom Command Menu.
+"""Features destination steps: Developer tools, Gaming, Printers, Custom Command Menu.
 
 The Developer tools switch shows the invoking account's real developer-group
 membership (internal/ublue reads it from the OS, and no stub can change it),
@@ -15,6 +15,7 @@ from behave import step, then
 
 import chairlift_atspi as atspi
 from stubs_features import CALLS_LOG, GAMING_COMPONENTS, account_is_developer
+from stubs_printers import quadlet_dir
 
 UBLUE_HELPER = "/usr/bin/chairlift-helper"
 PULP_ID = "org.gnome.gitlab.cheywood.Pulp"
@@ -287,3 +288,48 @@ def step_features_not_blank(context):
     assert atspi.poll(lambda: _groups(context, "Features")), "no Features page is showing"
     page = atspi.poll(page_text, timeout=5)
     assert page, "the Features page is advertised in the sidebar but shows nothing at all"
+
+
+# ---------------------------------------------------------------- Printers
+
+
+PRINTERS_GROUP = "Printers"
+
+# pageview.PrinterAppSubtitle for printerapp.StateBlocked: the ADR-0016
+# condition as a person meets it.
+PRINTER_BLOCKED_SUBTITLE = (
+    "Can't be turned on yet. This printer application's administration page cannot be "
+    "secured until its image accepts an administrator credential; the switch unlocks once it does."
+)
+
+
+def _printer_rows(context):
+    """Every list row inside the Printers group, in display order."""
+    groups = _groups(context, PRINTERS_GROUP)
+    assert groups, f"no {PRINTERS_GROUP!r} group on the Features page"
+    return atspi.find_all(groups[0], lambda n: atspi.role(n) in atspi.ROW_ROLES)
+
+
+@then("the Printers group offers exactly these rows, each off and locked")
+def step_printer_rows_locked(context):
+    want = [row["row"] for row in context.table]
+    assert atspi.poll(lambda: _groups(context, PRINTERS_GROUP)), f"no {PRINTERS_GROUP!r} group on the Features page"
+    group = _groups(context, PRINTERS_GROUP)[0]
+    for title in want:
+        row = atspi.row_containing(group, title)
+        switch = atspi.find(row, lambda n: atspi.role(n) == "switch", f"a switch in the {title!r} row")
+        # ADR-0016: shown, off, and locked — never a switch that silently
+        # does nothing, never a false enabled indicator.
+        assert atspi.checked(switch) is False, f"{title!r} switch is not off"
+        assert not atspi.sensitive(switch), f"{title!r} switch accepts input while its family is blocked"
+        texts = atspi.all_text_under(row)
+        assert PRINTER_BLOCKED_SUBTITLE in texts, f"{title!r} row does not say why it is locked: {texts}"
+    got = [atspi.label_text(r) for r in _printer_rows(context)]
+    assert len(got) == len(want), f"Printers group rows {got} != {want}"
+
+
+@then("no printer quadlet was written")
+def step_no_quadlet(context):
+    directory = quadlet_dir(context)
+    written = sorted(os.listdir(directory)) if os.path.isdir(directory) else []
+    assert not written, f"quadlets were written under {directory}: {written}"

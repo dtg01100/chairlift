@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/projectbluefin/chairlift/internal/navigation"
+	"github.com/projectbluefin/chairlift/internal/printerapp"
 )
 
 const walkthroughTimeout = 3 * time.Minute
@@ -419,5 +420,18 @@ func assertBluefinGroupsRendered(t *testing.T, outDir string) {
 		if !strings.Contains(ai, want) {
 			t.Errorf("agents page marker missing %q\n  %s", want, ai)
 		}
+	}
+
+	// The Printers group is floored on Podman, which capture_walkthrough.sh
+	// supplies through CHAIRLIFT_CAPABILITIES. Every family is blocked until
+	// its image accepts an administration credential (ADR-0016), and the
+	// marker says so: a screenshot of the Features page must show one locked
+	// row per family, not a page where the group silently hid itself. The
+	// count comes from the families table so adding a family does not touch
+	// this gate.
+	printers := findLogLine(t, outDir, "views: printers group built")
+	families := len(printerapp.Families())
+	if want := fmt.Sprintf("families=%d blocked=%d", families, families); !strings.Contains(printers, want) {
+		t.Errorf("printers group marker missing %q\n  %s", want, printers)
 	}
 }

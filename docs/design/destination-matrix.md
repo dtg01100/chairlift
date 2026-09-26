@@ -99,6 +99,7 @@ not permission to run its builder twice.
 | `features_page` | `features_group` | Features | System / Distribution features | S3, S4 |
 | `features_page` | `dx_group` | Features | Apps / Developer Tools | A9, A10 |
 | `features_page` | `gaming_group` | Features | Apps / Collections and gaming | A11 |
+| `features_page` | `printers_group` | Features | Features / Printers | — |
 | `agents_page` | `agents_group` | Agents | Apps / Local AI tools | A12 |
 | `livery_page` | `account_group` | Livery | Appearance / Profile picture | P1 |
 | `livery_page` | `livery_app_grid_group` | Livery | Appearance / Icons | P2 |

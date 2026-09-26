@@ -122,6 +122,7 @@ to ChairLift's log, which is where to look when filing a bug report.
 | Features | `features_group` | Toggle system features managed by updex |
 | Developer Mode | `dx_group` | Adds the invoking account to container, VM, and serial-device groups; a confirmed live enable also opens the three developer onboarding tabs and, when configured, runs the optional feed setup below. Shown only when `/usr/share/ublue-os/image-info.json` is present |
 | Gaming Mode | `gaming_group` | Toggles gaming optimizations; shown only when `/usr/share/ublue-os/image-info.json` is present |
+| Printers | `printers_group` | Printer applications: one switch per driver family (Ghostscript, HPLIP, Gutenprint), each a rootless Podman quadlet under `~/.config/containers/systemd` driven with `systemctl --user`. Crosses no privilege boundary, so it has no `pkexec` route. Hidden where `podman` is absent. A family may be turned on only when its web administration is authenticated or absent ([ADR-0016](adr/0016-printer-app-admin-denied-until-authenticated.md)); until the published images accept that setting every switch is locked and the row says what is needed |
 
 `dx_group` supports two optional, default-off steps that run off the GTK main
 thread after a confirmed live enable, and never on a disable, a page restore, a

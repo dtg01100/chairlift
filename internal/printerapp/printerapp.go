@@ -404,15 +404,34 @@ func IsEnabled(app App) bool {
 // reachable without authentication (ADR-0016).
 var ErrAdminUnauthenticated = errors.New("printer application web administration is unauthenticated; refused on host network (ADR-0016)")
 
+// CanEnable is the ADR-0016 enable condition, queryable so the view can show
+// a family as a non-enabled state instead of offering a switch that refuses.
+// An application may be enabled only when its web administration is either
+// authenticated (an auth service, admin group, or password) or absent
+// (server-options=no-web-interface).
+//
+// No published image can be given either yet: every entrypoint forwards only
+// PORT and a log file, so ChairLift has no way to hand the credential over.
+// The image-side changes are requested in projectbluefin/ghostscript-printer-app#65,
+// hplip-printer-app#51, and gutenprint-printer-app#57; once an image accepts
+// an administration setting, this is where that family starts returning nil
+// and its unit gains the environment line that carries it. Until then every
+// family is refused, and the refusal is the same error Enable returns.
+func CanEnable(f Family) error {
+	return ErrAdminUnauthenticated
+}
+
 // Enable writes the quadlet for the printer application and starts it. Enabling
 // only writes the unit and starts the service: the image pull happens inside
 // the container runtime afterwards, so the switch must not wait on it.
+//
+// CanEnable runs first, before the dry-run branch: a preview of an enable
+// ADR-0016 forbids would describe a change that must never happen.
 func Enable(ctx context.Context, app App) error {
-	// ADR-0016 enable condition: an application may only be enabled when its web
-	// administration is authenticated or absent. Published images today forward
-	// only PORT/log options and cannot be given admin credentials or
-	// server-options=no-web-interface, so enabling on host networking is refused.
-	return ErrAdminUnauthenticated
+	if err := CanEnable(app.Family); err != nil {
+		return err
+	}
+	return enableInternal(ctx, app)
 }
 
 // enableInternal writes the quadlet and starts the service once prerequisites are met.

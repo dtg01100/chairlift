@@ -116,10 +116,20 @@ reader, the file, or anything you imported from it.
 **Gaming** is a switch: on installs Steam and the tools that make Windows
 games run, off removes them again. On an image that already ships them, the
 page says so instead of offering a switch that would do nothing.
+**Printers** is one switch per printer driver family — Ghostscript, HP
+(HPLIP), and Gutenprint — for printers that need more than built-in
+driverless printing. Each runs as a small container in your own account,
+adds nothing to the system, and shares its printers with this computer and
+your network; when one is running, its row names the local web page where you
+add and manage printers. The switches are locked for now, and each row says
+why: a family can be turned on only once its driver image accepts an
+administrator credential for that web page, so nothing on your network can
+reach an unprotected administration screen. Printing through a real device
+has not yet been verified against hardware.
 **Optional features** is the distribution's own feature manager; it is hidden
 where the distribution ships none. When a computer offers none of these —
-no Developer tools, no Gaming, no optional features — the page says
-**Nothing to set up here** rather than showing an empty screen.
+no Developer tools, no Gaming, no Printers, no optional features — the page
+says **Nothing to set up here** rather than showing an empty screen.
 
 Agent Mode has its own **Agents** page, and Enhanced Troubleshooting is on
 **Help**.

@@ -126,6 +126,23 @@ func TestPageBuildersUsePurePresentations(t *testing.T) {
 			},
 		},
 		{
+			file: "printers_page.go",
+			required: []string{
+				"pageview.PrintersGroupTitle(",
+				"pageview.PrinterFamilyRow(",
+				"pageview.PrinterAppSubtitle(",
+				"pageview.PrinterAppFailureToast(",
+				"actionmsg.PrinterApp(",
+				// Readiness comes from the state model, never from the unit
+				// file alone (#331, #361).
+				"printerapp.Resolve(",
+			},
+			retired: []string{
+				`"Printers"`,
+				"printerapp.IsEnabled(",
+			},
+		},
+		{
 			file: "firstrun.go",
 			required: []string{
 				"pageview.GetMovingDescription(",

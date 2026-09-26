@@ -165,6 +165,7 @@ var routes = []Item{
 			"features_group",
 			"dx_group",
 			"gaming_group",
+			"printers_group",
 		),
 	},
 	{
