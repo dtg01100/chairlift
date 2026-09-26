@@ -287,7 +287,11 @@ An agent must not break these:
   than a pixel comparison: font hinting and GTK point releases move pixels, so
   regenerating and diffing per push would churn the repository for no signal.
   Adding a page or a user-facing feature means running `make screenshots` and
-  extending `docs/walkthrough.md` in the same change.
+  extending `docs/walkthrough.md` in the same change. One capture is not a
+  page: `0-setup.png`, the setup assistant's welcome screen, which the
+  runner takes first by launching with `--dry-run --setup` and dismisses
+  with Escape before the page walk; the orphan check counts it beside the
+  pages, and the walkthrough opens with it.
   The screenshot runner must write its reset-group override as
   `config.dev.yml` beside the tagged binary: that is the first relative
   candidate, ahead of the checkout's own `config.dev.yml` and any

@@ -79,6 +79,7 @@ jobs:
             imagemagick \
             libadwaita-1-0 \
             libgtk-4-1 \
+            librsvg2-common \
             x11-apps \
             x11-utils \
             xauth \

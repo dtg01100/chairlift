@@ -11,6 +11,10 @@ runs:
   using: composite
   steps:
     # adwaita-icon-theme, libgtk-4-1, libadwaita-1-0: the GUI itself.
+    # librsvg2-common: gdk-pixbuf's SVG loader. Without it GTK draws every
+    #   SVG — the sidebar's symbolic icons and the setup assistant's wordmark
+    #   — as a missing-image placeholder or nothing at all, while every
+    #   capture test still passes; ubuntu-latest does not preinstall it.
     # dbus-x11, xvfb, xauth: the private display and session bus.
     # imagemagick, x11-utils (xdpyinfo), x11-apps (xwd), xdotool: the
     #   screenshot walkthrough; xwd also captures failed AT-SPI scenarios.
@@ -38,6 +42,7 @@ runs:
           imagemagick \
           libadwaita-1-0 \
           libgtk-4-1 \
+          librsvg2-common \
           python3-gi \
           python3-pyatspi \
           python3-venv \
