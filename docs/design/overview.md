@@ -2014,7 +2014,7 @@ is handled by the migration described above, not a current System namespace.
 - **Dev build**: `make dev` builds with `CGO_ENABLED=1` and `-race` flag for race detection
 - **Version**: Set via ldflags by goreleaser (`buildVersion`)
 - **Distribution**: Homebrew only — the cask installs the release archive; GoReleaser builds no deb, rpm, or apk packages
-- **Semantic versioning**: Uses [svu](https://github.com/caarlos0/svu) via `make bump`
+- **Calendar versioning**: `make bump` (`PRE=alpha.1` for a prerelease) tags the version printed by `scripts/next-version.sh` — `vYY.MM.N[-PRERELEASE]`, where N is the sequence within the calendar month and only a final tag moves it on, so successive prereleases of an unreleased N stay on that N. The script is not svu; the zero-padded month is deliberate, which is why the release build injects `{{ .Tag }}`. `internal/installcheck.TestNextVersionKeepsAnUnreleasedVersionNumber` pins the sequencing through the script's `NEXT_VERSION_SLOT` override
 - **CI**: GitHub Actions workflows for test and release (`.github/workflows/`);
   the release workflow (`.github/workflows/release.yml`, job `goreleaser`) runs
   GoReleaser OSS with `GITHUB_TOKEN` to publish the tagged commit's artifacts

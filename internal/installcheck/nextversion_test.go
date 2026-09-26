@@ -72,6 +72,9 @@ func TestNextVersionKeepsAnUnreleasedVersionNumber(t *testing.T) {
 		{"prerelease after a final release", []string{"v26.09.0-alpha.1", "v26.09.0"}, "alpha.1", "v26.09.1-alpha.1"},
 		{"release after a final release", []string{"v26.09.0"}, "", "v26.09.1"},
 		{"other months do not count", []string{"v26.08.4", "v0.12.2"}, "", "v26.09.0"},
+		{"next prerelease of an unreleased second version", []string{"v26.09.0", "v26.09.1-alpha.1"}, "alpha.2", "v26.09.1-alpha.2"},
+		{"final release of the second version after its prerelease", []string{"v26.09.0", "v26.09.1-alpha.1"}, "", "v26.09.1"},
+		{"sequence numbers compare numerically", []string{"v26.09.9", "v26.09.10"}, "", "v26.09.11"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

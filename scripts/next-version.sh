@@ -25,11 +25,15 @@ prerelease="${1:-}"
 # answer does not depend on today's date.
 slot="${NEXT_VERSION_SLOT:-$(date +%y.%m)}"
 
+# The slot is a regular-expression fragment in the sed below, so its dot must
+# be literal: unescaped, `26.09` also matches `26x09`.
+slot_pattern="${slot//./\\.}"
+
 # Highest N already tagged in this calendar slot. Release and prerelease tags
 # share the sequence, so an alpha does not silently reuse a released number.
 highest="$(
 	git tag --list "v${slot}.*" |
-		sed -E "s/^v${slot}\.([0-9]+).*$/\1/" |
+		sed -E "s/^v${slot_pattern}\.([0-9]+).*$/\1/" |
 		grep -E '^[0-9]+$' |
 		sort -n |
 		tail -1 ||
