@@ -37,7 +37,7 @@ vendor/
 .DS_Store
 Thumbs.db
 /chairlift-updex-helper
-/chairlift-ublue-helper
+/chairlift-helper
 
 # mill worktrees
 .worktrees/

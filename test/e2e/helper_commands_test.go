@@ -75,7 +75,7 @@ type acceptedCommand struct {
 const absentUpdexFeature = "chairlift-e2e-absent-feature"
 
 func acceptedHelperCommands() []acceptedCommand {
-	const ublue = "chairlift-ublue-helper"
+	const ublue = "chairlift-helper"
 	const updex = "chairlift-updex-helper"
 
 	// A missing descriptor is the normal state on a CI runner; a real
@@ -302,7 +302,7 @@ func TestEveryHelperCommandHasAnAcceptedCase(t *testing.T) {
 	}
 
 	for helper, supported := range map[string][]string{
-		"chairlift-ublue-helper": ubluehelper.SupportedCommands(),
+		"chairlift-helper":       ubluehelper.SupportedCommands(),
 		"chairlift-updex-helper": updexhelper.SupportedCommands(),
 	} {
 		var missing []string

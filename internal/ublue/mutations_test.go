@@ -259,7 +259,7 @@ func TestSetDescriptorOverrideRedirectsDetectOnly(t *testing.T) {
 	}
 
 	// The override is read-only: the privileged surface is untouched by it.
-	if HelperPath != "/usr/bin/chairlift-ublue-helper" {
+	if HelperPath != "/usr/bin/chairlift-helper" {
 		t.Errorf("HelperPath = %q; the descriptor override must never influence the privileged path", HelperPath)
 	}
 }

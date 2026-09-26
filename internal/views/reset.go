@@ -36,7 +36,7 @@ import (
 // Powerwash needs no privilege: both its steps (removing user Flatpaks,
 // removing Distrobox containers) run in the invoking account, the same
 // reasoning as gaming mode. Factory Reset replaces the OS image itself and
-// goes through chairlift-ublue-helper's factory-reset action.
+// goes through chairlift-helper's factory-reset action.
 
 // Button labels for the two recovery actions. Both open a confirmation
 // dialog rather than acting immediately, which is what the ellipsis says.

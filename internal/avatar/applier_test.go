@@ -342,7 +342,7 @@ func TestDispatchWritesTheOtherFaceFileWhenOneWriteFails(t *testing.T) {
 func TestApplierNeverInvokesAPrivilegedHelper(t *testing.T) {
 	forbidden := []string{
 		"pkexec",
-		"chairlift-ublue-helper",
+		"chairlift-helper",
 		"chairlift-updex-helper",
 		"helperexec",
 		"internal/ublue",

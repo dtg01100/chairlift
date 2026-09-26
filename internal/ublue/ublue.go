@@ -39,7 +39,7 @@ const (
 	// restrictive org.freedesktop.policykit.pkexec.run-program action
 	// instead. The Makefile installs the binary here whenever PREFIX is /usr
 	// (the default).
-	HelperPath = "/usr/bin/chairlift-ublue-helper"
+	HelperPath = "/usr/bin/chairlift-helper"
 
 	// DefaultTimeout bounds a helper invocation. Channel switching only
 	// stages a bootc transaction, but that transaction contacts a registry,

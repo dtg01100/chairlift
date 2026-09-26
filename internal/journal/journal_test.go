@@ -62,8 +62,8 @@ func TestRecordWritesOneLinePerEntry(t *testing.T) {
 	withSink(t, path)
 
 	Record("channel-switch", map[string]string{"channel": "testing"},
-		[]string{"pkexec", "/usr/bin/chairlift-ublue-helper", "channel-switch", "testing"}, SuppressedDryRun)
-	Record("restart", nil, []string{"pkexec", "/usr/bin/chairlift-ublue-helper", "restart"}, SuppressedNone)
+		[]string{"pkexec", "/usr/bin/chairlift-helper", "channel-switch", "testing"}, SuppressedDryRun)
+	Record("restart", nil, []string{"pkexec", "/usr/bin/chairlift-helper", "restart"}, SuppressedNone)
 
 	entries := readEntries(t, path)
 	if len(entries) != 2 {
@@ -77,7 +77,7 @@ func TestRecordWritesOneLinePerEntry(t *testing.T) {
 	if first.Args["channel"] != "testing" {
 		t.Errorf("first entry args = %v, want channel=testing", first.Args)
 	}
-	wantArgv := []string{"pkexec", "/usr/bin/chairlift-ublue-helper", "channel-switch", "testing"}
+	wantArgv := []string{"pkexec", "/usr/bin/chairlift-helper", "channel-switch", "testing"}
 	if len(first.WouldRun) != len(wantArgv) {
 		t.Fatalf("first entry WouldRun = %v, want %v", first.WouldRun, wantArgv)
 	}

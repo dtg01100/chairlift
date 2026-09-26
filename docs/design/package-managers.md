@@ -748,7 +748,7 @@ models GHCR's Link-header pagination, its Content-Type-only manifest media
 type, and its 404 `MANIFEST_UNKNOWN` body.
 
 Pinning to a dated tag is not implemented here and is not unblocked by this
-package. `chairlift-ublue-helper` accepts no image reference (ADR-0001), so a
+package. `chairlift-helper` accepts no image reference (ADR-0001), so a
 pin has to be a new privileged operation whose target the helper derives from
 a validated grammar, as `channel-switch` already does for its own target.
 
@@ -939,10 +939,10 @@ administrator and must survive installation and upgrades unchanged.
 
 The Homebrew cask installs in user scope and cannot place root-owned files, so
 the release archive also carries the privileged pieces: both helper binaries
-(`chairlift-updex-helper`, `chairlift-ublue-helper`), the three PolicyKit
+(`chairlift-updex-helper`, `chairlift-helper`), the three PolicyKit
 policies in `data/`, `config.yml`, and `channels.example.yml`. An OS image that
 wants the privileged features installs, from that archive, the helpers at
-`/usr/bin/chairlift-updex-helper` and `/usr/bin/chairlift-ublue-helper` and the
+`/usr/bin/chairlift-updex-helper` and `/usr/bin/chairlift-helper` and the
 policies at
 `/usr/share/polkit-1/actions/io.projectbluefin.chairlift.bootc.policy`,
 `/usr/share/polkit-1/actions/io.projectbluefin.chairlift.updex.policy`, and

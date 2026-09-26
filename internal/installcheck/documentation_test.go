@@ -117,7 +117,7 @@ func TestCurrentDocumentationMatchesSourceFacts(t *testing.T) {
 
 		for _, required := range []string{
 			"/usr/bin/chairlift-updex-helper",
-			"/usr/bin/chairlift-ublue-helper",
+			"/usr/bin/chairlift-helper",
 			"/usr/share/polkit-1/actions/io.projectbluefin.chairlift.bootc.policy",
 			"/usr/share/polkit-1/actions/io.projectbluefin.chairlift.updex.policy",
 			"/usr/share/polkit-1/actions/io.projectbluefin.chairlift.ublue.policy",

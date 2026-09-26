@@ -11,7 +11,7 @@ is YAML-configuration-driven; feature groups toggle on and off per host.
 The app builds pure-Go (`CGO_ENABLED=0`); the race detector needs CGO.
 
 - `make build` — builds `build/chairlift`, `build/chairlift-updex-helper`, and
-  `build/chairlift-ublue-helper` (all `CGO_ENABLED=0`).
+  `build/chairlift-helper` (all `CGO_ENABLED=0`).
 - `make test` — `go test ./...`. Every target in the Makefile is a command
   that produces no file of its own name, so every one must be declared
   `.PHONY`. This is not a style nit: the repository has a `test/` directory,
@@ -152,7 +152,7 @@ An agent must not break these:
   `io.projectbluefin.chairlift.bootc.stage`),
   `pkexec /usr/bin/chairlift-updex-helper` (`internal/updex.HelperPath`, actions
   `io.projectbluefin.chairlift.updex.{enable-feature,disable-feature,update}`), and
-  `pkexec /usr/bin/chairlift-ublue-helper` (`internal/ublue.HelperPath`,
+  `pkexec /usr/bin/chairlift-helper` (`internal/ublue.HelperPath`,
   actions `io.projectbluefin.chairlift.ublue.*` — see the helper-extension
   invariant below for the full subcommand list)
   — always that fixed absolute path, matching the
@@ -166,7 +166,7 @@ An agent must not break these:
   privileged command execution, broaden what pkexec runs, or route new
   mutations around the fixed helper/policy pair.
 - **Neither an image reference nor a username crosses the ublue pkexec
-  boundary.** `chairlift-ublue-helper` receives a channel word only, and
+  boundary.** `chairlift-helper` receives a channel word only, and
   derives the concrete `bootc switch` target itself from the read-only image
   descriptor plus the channel table; it derives the account to modify from
   the `PKEXEC_UID` pkexec sets, never from argv. Accepting either as an
@@ -228,7 +228,7 @@ An agent must not break these:
   without that call none of those controls is reachable.
   The operating-system source must keep going through `internal/bootc`'s
   staging path. Adding a
-  `bootc upgrade` route to `chairlift-ublue-helper` would break both the
+  `bootc upgrade` route to `chairlift-helper` would break both the
   staging-ownership invariant below and the fixed-path contract an OS image
   relies on when it installs the helpers. The run's only privileged surface of its own is
   `restart`: `updateflow.ActionRestart` is set when the snapshot reaches
@@ -239,7 +239,7 @@ An agent must not break these:
   system, so a successful OS source is not by itself evidence anything
   changed.
 - **New privileged operations extend the ublue helper; they do not add a
-  binary.** `chairlift-ublue-helper` carries nine subcommands
+  binary.** `chairlift-helper` carries nine subcommands
   (`channel-switch`, `dx-enable`, `dx-disable`, `restart`, `rollback`,
   `auto-updates-enable`, `auto-updates-disable`, `driver-switch`,
   `factory-reset`), each selected by exactly one PolicyKit
@@ -256,7 +256,7 @@ An agent must not break these:
   `rollback` is the same shape with an even shorter argv.
   `internal/ubluehelper`'s tests assert
   this per command, and the e2e boundary test asserts the installed binary
-  rejects each shape. `cmd/chairlift-ublue-helper`'s dispatch carries a
+  rejects each shape. `cmd/chairlift-helper`'s dispatch carries a
   `default` arm that exits non-zero: a command the parser accepts and the
   switch does not handle would otherwise exit 0 having done nothing, which
   the GUI cannot tell apart from a privileged action that worked. The
@@ -860,7 +860,7 @@ An agent must not break these:
   argv lives; do not move that text inline where it stops being tested.
   Powerwash needs no privilege (both steps run in the invoking account, like
   gaming mode); Factory Reset is the new `factory-reset` action on
-  `chairlift-ublue-helper` and takes no argument, since it has exactly one
+  `chairlift-helper` and takes no argument, since it has exactly one
   target — the image already booted.
 - **The product name and the code name are different strings, and only one of
   them has an owner.** The application ships in Bluefin as **Control Center**;

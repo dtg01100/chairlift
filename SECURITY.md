@@ -18,7 +18,7 @@ security updates.
 
 ## Reporting a Vulnerability
 
-ChairLift ships a privileged `pkexec` helper (`cmd/chairlift-ublue-helper`)
+ChairLift ships a privileged `pkexec` helper (`cmd/chairlift-helper`)
 that runs as root, so a flaw in its input validation is high-impact. Thank you
 for helping keep it safe.
 

@@ -1,5 +1,5 @@
 // Package ubluehelper holds the argv-parsing logic for
-// cmd/chairlift-ublue-helper, the privileged helper binary invoked via
+// cmd/chairlift-helper, the privileged helper binary invoked via
 // pkexec to perform the Bluefin-family write operations: switching the bootc
 // release channel and toggling developer-mode group membership.
 //
@@ -115,12 +115,12 @@ func SupportedCommands() []string {
 // word, an unknown command — is rejected.
 func ParseInvocation(args []string) (Invocation, error) {
 	if len(args) == 0 {
-		return Invocation{}, fmt.Errorf("usage: chairlift-ublue-helper <command> [args...]")
+		return Invocation{}, fmt.Errorf("usage: chairlift-helper <command> [args...]")
 	}
 
 	switch args[0] {
 	case CommandChannelSwitch:
-		usage := fmt.Errorf("usage: chairlift-ublue-helper %s <%s|%s> [--dry-run]",
+		usage := fmt.Errorf("usage: chairlift-helper %s <%s|%s> [--dry-run]",
 			CommandChannelSwitch, ChannelStable, ChannelTesting)
 		if len(args) != 2 && len(args) != 3 {
 			return Invocation{}, usage
@@ -136,7 +136,7 @@ func ParseInvocation(args []string) (Invocation, error) {
 		return Invocation{Command: CommandChannelSwitch, Channel: channel, DryRun: dryRun}, nil
 
 	case CommandDriverSwitch:
-		usage := fmt.Errorf("usage: chairlift-ublue-helper %s <%s|%s|%s> [--dry-run]",
+		usage := fmt.Errorf("usage: chairlift-helper %s <%s|%s|%s> [--dry-run]",
 			CommandDriverSwitch, imageinfo.DriverStandard, imageinfo.DriverNVIDIA, imageinfo.DriverNVIDIAOpen)
 		if len(args) != 2 && len(args) != 3 {
 			return Invocation{}, usage
@@ -154,7 +154,7 @@ func ParseInvocation(args []string) (Invocation, error) {
 	case CommandDXEnable, CommandDXDisable, CommandRestart, CommandRollback,
 		CommandAutoEnable, CommandAutoDisable, CommandFactoryReset:
 		if len(args) > 2 || (len(args) == 2 && args[1] != "--dry-run") {
-			return Invocation{}, fmt.Errorf("usage: chairlift-ublue-helper %s [--dry-run]", args[0])
+			return Invocation{}, fmt.Errorf("usage: chairlift-helper %s [--dry-run]", args[0])
 		}
 		return Invocation{Command: args[0], DryRun: len(args) == 2}, nil
 
@@ -304,7 +304,7 @@ func SwitchArgs(info imageinfo.Info, channel imageinfo.Channel) ([]string, bool)
 // PKEXEC_UID environment variable pkexec sets to the *invoking* session's
 // uid. Reading the identity from the environment pkexec controls — rather
 // than from argv, which the caller controls — is what keeps
-// `pkexec chairlift-ublue-helper dx-enable` from being usable to add an
+// `pkexec chairlift-helper dx-enable` from being usable to add an
 // arbitrary account to the privileged developer groups.
 //
 // An absent, empty, non-numeric, or negative value is rejected. uid 0 is

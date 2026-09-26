@@ -72,8 +72,8 @@ func TestHelperBinariesDispatchEverySupportedCommand(t *testing.T) {
 func gatedHelpers() []helperUnderGate {
 	return []helperUnderGate{
 		{
-			name:      "chairlift-ublue-helper",
-			mainFile:  "cmd/chairlift-ublue-helper/main.go",
+			name:      "chairlift-helper",
+			mainFile:  "cmd/chairlift-helper/main.go",
 			pkgDir:    "internal/ubluehelper",
 			selector:  "ubluehelper",
 			supported: ubluehelper.SupportedCommands(),

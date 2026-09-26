@@ -188,7 +188,7 @@ func TestInstalledBundleAndHelperBoundary(t *testing.T) {
 		"usr/bin/chairlift",
 		"usr/bin/chairlift-wrapper",
 		"usr/bin/chairlift-updex-helper",
-		"usr/bin/chairlift-ublue-helper",
+		"usr/bin/chairlift-helper",
 	}
 	for _, path := range executables {
 		requireExecutable(t, filepath.Join(stage, path))
@@ -238,41 +238,41 @@ func TestInstalledBundleAndHelperBoundary(t *testing.T) {
 		{name: "updex unknown command", helper: "chairlift-updex-helper", args: []string{"unknown"}, wantStderr: "unknown command: unknown"},
 		{name: "updex missing feature", helper: "chairlift-updex-helper", args: []string{"enable-feature"}, wantStderr: "usage: chairlift-updex-helper enable-feature"},
 
-		{name: "ublue missing command", helper: "chairlift-ublue-helper", wantStderr: "usage: chairlift-ublue-helper"},
-		{name: "ublue unknown command", helper: "chairlift-ublue-helper", args: []string{"powerwash"}, wantStderr: "unknown command: powerwash"},
-		{name: "ublue channel switch without a channel", helper: "chairlift-ublue-helper", args: []string{"channel-switch"}, wantStderr: "usage: chairlift-ublue-helper channel-switch"},
-		{name: "ublue channel switch with unknown channel", helper: "chairlift-ublue-helper", args: []string{"channel-switch", "nightly"}, wantStderr: "usage: chairlift-ublue-helper channel-switch"},
+		{name: "ublue missing command", helper: "chairlift-helper", wantStderr: "usage: chairlift-helper"},
+		{name: "ublue unknown command", helper: "chairlift-helper", args: []string{"powerwash"}, wantStderr: "unknown command: powerwash"},
+		{name: "ublue channel switch without a channel", helper: "chairlift-helper", args: []string{"channel-switch"}, wantStderr: "usage: chairlift-helper channel-switch"},
+		{name: "ublue channel switch with unknown channel", helper: "chairlift-helper", args: []string{"channel-switch", "nightly"}, wantStderr: "usage: chairlift-helper channel-switch"},
 		// The argument that matters most: an image reference must never be
 		// accepted in place of a channel word, or an authenticated caller
 		// could point `bootc switch` at any registry.
-		{name: "ublue channel switch with an image ref", helper: "chairlift-ublue-helper", args: []string{"channel-switch", "ghcr.io/evil/image:latest"}, wantStderr: "usage: chairlift-ublue-helper channel-switch"},
-		{name: "ublue dx enable with a username", helper: "chairlift-ublue-helper", args: []string{"dx-enable", "root"}, wantStderr: "usage: chairlift-ublue-helper dx-enable"},
-		{name: "ublue dx disable with a group", helper: "chairlift-ublue-helper", args: []string{"dx-disable", "wheel"}, wantStderr: "usage: chairlift-ublue-helper dx-disable"},
+		{name: "ublue channel switch with an image ref", helper: "chairlift-helper", args: []string{"channel-switch", "ghcr.io/evil/image:latest"}, wantStderr: "usage: chairlift-helper channel-switch"},
+		{name: "ublue dx enable with a username", helper: "chairlift-helper", args: []string{"dx-enable", "root"}, wantStderr: "usage: chairlift-helper dx-enable"},
+		{name: "ublue dx disable with a group", helper: "chairlift-helper", args: []string{"dx-disable", "wheel"}, wantStderr: "usage: chairlift-helper dx-disable"},
 		// PKEXEC_UID is absent outside a pkexec session, so a direct
 		// invocation cannot resolve a user to modify.
-		{name: "ublue dx enable outside pkexec", helper: "chairlift-ublue-helper", args: []string{"dx-enable"}, wantStderr: "PKEXEC_UID is not set"},
+		{name: "ublue dx enable outside pkexec", helper: "chairlift-helper", args: []string{"dx-enable"}, wantStderr: "PKEXEC_UID is not set"},
 		// Restart takes no delay and no target: either would be a value the
 		// caller controls crossing an authenticated boundary.
-		{name: "ublue restart with a delay", helper: "chairlift-ublue-helper", args: []string{"restart", "02:00"}, wantStderr: "usage: chairlift-ublue-helper restart"},
-		{name: "ublue restart with a flag", helper: "chairlift-ublue-helper", args: []string{"restart", "--force"}, wantStderr: "usage: chairlift-ublue-helper restart"},
-		{name: "ublue restart with extra argument", helper: "chairlift-ublue-helper", args: []string{"restart", "--dry-run", "now"}, wantStderr: "usage: chairlift-ublue-helper restart"},
+		{name: "ublue restart with a delay", helper: "chairlift-helper", args: []string{"restart", "02:00"}, wantStderr: "usage: chairlift-helper restart"},
+		{name: "ublue restart with a flag", helper: "chairlift-helper", args: []string{"restart", "--force"}, wantStderr: "usage: chairlift-helper restart"},
+		{name: "ublue restart with extra argument", helper: "chairlift-helper", args: []string{"restart", "--dry-run", "now"}, wantStderr: "usage: chairlift-helper restart"},
 		// Rolling back to an arbitrary image is a channel switch, not this
 		// operation.
-		{name: "ublue rollback with a target image", helper: "chairlift-ublue-helper", args: []string{"rollback", "ghcr.io/evil/image:old"}, wantStderr: "usage: chairlift-ublue-helper rollback"},
-		{name: "ublue rollback with a deployment index", helper: "chairlift-ublue-helper", args: []string{"rollback", "1"}, wantStderr: "usage: chairlift-ublue-helper rollback"},
+		{name: "ublue rollback with a target image", helper: "chairlift-helper", args: []string{"rollback", "ghcr.io/evil/image:old"}, wantStderr: "usage: chairlift-helper rollback"},
+		{name: "ublue rollback with a deployment index", helper: "chairlift-helper", args: []string{"rollback", "1"}, wantStderr: "usage: chairlift-helper rollback"},
 		// A caller-supplied unit would let an authenticated user enable or
 		// mask any systemd unit on the machine.
-		{name: "ublue auto updates with a unit", helper: "chairlift-ublue-helper", args: []string{"auto-updates-enable", "sshd.service"}, wantStderr: "usage: chairlift-ublue-helper auto-updates-enable"},
-		{name: "ublue auto updates with a flag", helper: "chairlift-ublue-helper", args: []string{"auto-updates-disable", "--now"}, wantStderr: "usage: chairlift-ublue-helper auto-updates-disable"},
+		{name: "ublue auto updates with a unit", helper: "chairlift-helper", args: []string{"auto-updates-enable", "sshd.service"}, wantStderr: "usage: chairlift-helper auto-updates-enable"},
+		{name: "ublue auto updates with a flag", helper: "chairlift-helper", args: []string{"auto-updates-disable", "--now"}, wantStderr: "usage: chairlift-helper auto-updates-disable"},
 		// The driver word is validated against a fixed set; an image
 		// reference must never stand in for it.
-		{name: "ublue driver switch with an image ref", helper: "chairlift-ublue-helper", args: []string{"driver-switch", "ghcr.io/evil/image:latest"}, wantStderr: "usage: chairlift-ublue-helper driver-switch"},
-		{name: "ublue driver switch with an unknown driver", helper: "chairlift-ublue-helper", args: []string{"driver-switch", "nouveau"}, wantStderr: "usage: chairlift-ublue-helper driver-switch"},
-		{name: "ublue driver switch without a driver", helper: "chairlift-ublue-helper", args: []string{"driver-switch"}, wantStderr: "usage: chairlift-ublue-helper driver-switch"},
+		{name: "ublue driver switch with an image ref", helper: "chairlift-helper", args: []string{"driver-switch", "ghcr.io/evil/image:latest"}, wantStderr: "usage: chairlift-helper driver-switch"},
+		{name: "ublue driver switch with an unknown driver", helper: "chairlift-helper", args: []string{"driver-switch", "nouveau"}, wantStderr: "usage: chairlift-helper driver-switch"},
+		{name: "ublue driver switch without a driver", helper: "chairlift-helper", args: []string{"driver-switch"}, wantStderr: "usage: chairlift-helper driver-switch"},
 		// A factory reset takes no argument at all; the target is always the
 		// image already booted.
-		{name: "ublue factory reset with a flag", helper: "chairlift-ublue-helper", args: []string{"factory-reset", "--force"}, wantStderr: "usage: chairlift-ublue-helper factory-reset"},
-		{name: "ublue factory reset with extra argument", helper: "chairlift-ublue-helper", args: []string{"factory-reset", "--dry-run", "now"}, wantStderr: "usage: chairlift-ublue-helper factory-reset"},
+		{name: "ublue factory reset with a flag", helper: "chairlift-helper", args: []string{"factory-reset", "--force"}, wantStderr: "usage: chairlift-helper factory-reset"},
+		{name: "ublue factory reset with extra argument", helper: "chairlift-helper", args: []string{"factory-reset", "--dry-run", "now"}, wantStderr: "usage: chairlift-helper factory-reset"},
 	}
 
 	for _, test := range tests {

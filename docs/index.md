@@ -89,7 +89,7 @@ This produces three binaries in `build/`:
 
 - `chairlift` — the main application
 - `chairlift-updex-helper` — privileged helper for updex write operations
-- `chairlift-ublue-helper` — privileged helper for Bluefin-family system writes
+- `chairlift-helper` — privileged helper for Bluefin-family system writes
 
 All are built with `CGO_ENABLED=0`.
 
@@ -101,10 +101,10 @@ are no deb, rpm, or apk packages.
 
 The Homebrew cask installs in user scope and cannot place root-owned files, so
 the same archive also carries the privileged pieces: `chairlift-updex-helper`,
-`chairlift-ublue-helper`, the bootc, updex, and ublue PolicyKit policies in `data/`,
+`chairlift-helper`, the bootc, updex, and ublue PolicyKit policies in `data/`,
 `config.yml`, and `channels.example.yml`. An OS image that wants the
 privileged features installs, from that archive, the helpers at
-`/usr/bin/chairlift-updex-helper` and `/usr/bin/chairlift-ublue-helper` and the
+`/usr/bin/chairlift-updex-helper` and `/usr/bin/chairlift-helper` and the
 policies at
 `/usr/share/polkit-1/actions/io.projectbluefin.chairlift.bootc.policy`,
 `/usr/share/polkit-1/actions/io.projectbluefin.chairlift.updex.policy`, and

@@ -1,10 +1,10 @@
-// chairlift-ublue-helper is a privileged helper binary for the
+// chairlift-helper is a privileged helper binary for the
 // Bluefin-family write operations ChairLift exposes on Bluefin, Bluefin LTS,
 // and Dakota: switching the bootc release channel between stable and
 // testing, and adding or removing the invoking user's developer-mode group
 // membership.
 //
-// It is invoked only as `pkexec /usr/bin/chairlift-ublue-helper <command>`,
+// It is invoked only as `pkexec /usr/bin/chairlift-helper <command>`,
 // with each command selected by one PolicyKit action in
 // data/io.projectbluefin.chairlift.ublue.policy. pkexec authenticates the action
 // and matches the executable path and first argument; everything after that

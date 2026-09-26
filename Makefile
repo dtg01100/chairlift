@@ -21,7 +21,7 @@
 # Binary names
 BINARY_NAME=chairlift
 HELPER_NAME=chairlift-updex-helper
-UBLUE_HELPER_NAME=chairlift-ublue-helper
+UBLUE_HELPER_NAME=chairlift-helper
 
 # Build directory
 BUILD_DIR=build
@@ -76,7 +76,7 @@ build: schemas
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=$(CGO_ENABLED) $(GOBUILD) $(E2E_COVER_FLAG) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/chairlift
 	CGO_ENABLED=$(CGO_ENABLED) $(GOBUILD) $(E2E_COVER_FLAG) -o $(BUILD_DIR)/$(HELPER_NAME) ./cmd/chairlift-updex-helper
-	CGO_ENABLED=$(CGO_ENABLED) $(GOBUILD) $(E2E_COVER_FLAG) -o $(BUILD_DIR)/$(UBLUE_HELPER_NAME) ./cmd/chairlift-ublue-helper
+	CGO_ENABLED=$(CGO_ENABLED) $(GOBUILD) $(E2E_COVER_FLAG) -o $(BUILD_DIR)/$(UBLUE_HELPER_NAME) ./cmd/chairlift-helper
 
 run: build
 	./$(BUILD_DIR)/$(BINARY_NAME) --dry-run
