@@ -456,7 +456,6 @@ func (s *UpdateShell) build() {
 	// so the compact layout never applies reliably. Both values sit under
 	// the 600px condition so the breakpoint can actually be reached.
 	s.breakpointBin.SetSizeRequest(360, 200)
-	s.breakpointBin.SetChild(&content.Widget)
 	compactBreakpoint := adw.NewBreakpoint(adw.BreakpointConditionParse("max-width: 600px"))
 	applyCompact := func(_ adw.Breakpoint) {
 		s.setCompactRows(true)
@@ -474,9 +473,17 @@ func (s *UpdateShell) build() {
 	scrolled.SetVexpand(true)
 	clamp := adw.NewClamp()
 	clamp.SetMaximumSize(720)
-	clamp.SetChild(&s.breakpointBin.Widget)
+	clamp.SetChild(&content.Widget)
 	scrolled.SetChild(&clamp.Widget)
-	s.toolbarView.SetContent(&scrolled.Widget)
+	// The breakpoint bin wraps the scroller, not the other way round. An
+	// AdwBreakpointBin never asks for more height than its size request, so
+	// inside a GtkScrolledWindow it got one viewport of height and clipped
+	// everything below ("GtkBox exceeds AdwBreakpointBin height: requested
+	// 1844 px, 844 px available"): once the preferences page mounted,
+	// automatic updates, the release channel, and the graphics driver could
+	// not be scrolled to.
+	s.breakpointBin.SetChild(&scrolled.Widget)
+	s.toolbarView.SetContent(&s.breakpointBin.Widget)
 
 	s.toastOverlay = adw.NewToastOverlay()
 	s.toastOverlay.SetChild(&s.toolbarView.Widget)
