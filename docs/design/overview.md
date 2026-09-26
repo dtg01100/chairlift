@@ -2157,13 +2157,37 @@ assistant index alone. Skip and intentional Dismiss emit `skipped`, or retain
 transitions persists or executes anything. The dialog must apply emitted decisions
 through the existing store, respecting dry-run and reporting persistence errors.
 
-Issue #224 owns this model; issue #225 owns dedicated control instances, async
-readiness, action admission, and GTK Skip/dismissal callbacks. The GTK
-onboarding dialog (`internal/views/firstrun.go`) presents the opening hero
-screen with the official Project Bluefin adaptive vector wordmark
+Issue #224 owns this model; issue #225's dialog adapter is
+`internal/views/firstrun.go`. The GTK onboarding dialog presents the opening
+hero screen with the official Project Bluefin adaptive vector wordmark
 (`bluefin-wordmark-light.svg` / `bluefin-wordmark-dark.svg`, without redundant
 stacked brand graphics) followed by the Adwaita title and flow options
-("Configure Everything" and "Get Moving").
-A capability floor is necessary but is not permission to expose a control whose
-own desktop/async readiness or implementation is missing. See the
-[setup model contract](../specs/setup-model.md) for the exact boundary and tests.
+("Configure Everything" and "Get Moving"), then one configuration step at a
+time, each a preferences group of the step's choices rendered as real
+controls. The dialog implements no setting itself: every control acts
+through `views.SetupHost` (`internal/views/setup_host.go`, implemented by
+`UserHome`), which is the pages' own handlers. An Appearance choice is the
+Livery page's switch row and its switch flips the page's switch
+(`SetLiveryEnabled`), so the page's gated handler applies the mark and the
+page already shows the result; the Apps step lists the collections the Apps
+page discovered, each Install button connected through the page's shared
+per-collection gate (`ConnectBundleInstall`), so both surfaces show one phase
+and cannot overlap a run; each Update Preferences switch is bound to the
+`io.projectbluefin.chairlift.updates` key its `Choice.ID` spells, from the
+`pageview.UpdateSourcePreferences` table the Preferences dialog also renders.
+A row stays insensitive with a "checking" subtitle until its page has
+loaded, and a flip the page cannot take (not loaded, gate busy) is restored
+with a toast rather than left showing an unapplied state.
+
+Every widget and signal is built once in `buildUI`; `Present` rebuilds only
+the pure model and refreshes row state, so reopening allocates no puregotk
+callback. Get Moving, and a close that reached no decision (Escape, the close
+button, a click outside), record `skipped` through `firstrun.RecordSkip`,
+which never demotes a recorded completion; Finish records `completed` and the
+version. Under `--dry-run` nothing is persisted or bound — the writes become
+`[DRY-RUN] would set …` log lines — and the automatic presentation is
+suppressed, so `test/e2e/features/setup.feature` and the walkthrough capture
+open the assistant with `--setup`. A capability floor is necessary but is
+not permission to expose a control whose own desktop/async readiness is
+missing. See the [setup model contract](../specs/setup-model.md) for the
+exact boundary and tests.

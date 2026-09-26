@@ -429,17 +429,44 @@ An agent must not break these:
   `config.SchemaGroups` in both directions, enforced by
   `internal/installcheck`'s `TestCapabilityPrerequisitesMatchConfigSchema`, so
   a new config group is classified in the same change that adds it.
-- **Setup filters choices, not whole pages.** `internal/firstrun` snapshots
-  the shared composed capability floor for at most three optional tasks:
-  Appearance, Apps, and Update Preferences. Each choice retains its original
-  page/group policy references; Update Preferences includes `features_page`'s
-  `features_group`. Nil fails closed, empty tasks disappear, and returned
-  snapshots do not expose mutable model state. Next/Back emit no settings or
-  feature operation; Skip and intentional Dismiss emit the same disposition,
-  preserving an existing completion. The welcome entry is a clean hero screen
-  displaying the adaptive Project Bluefin vector wordmark, not a decision step.
-  Dedicated controls and dismissal persistence wiring belong to issue #225;
-  do not claim the pure model implements those GTK behaviors.
+- **Setup filters choices, not whole pages, and every choice acts through
+  the page that owns it.** `internal/firstrun` snapshots the shared composed
+  capability floor for at most three optional tasks: Appearance, Apps, and
+  Update Preferences. Each choice retains its original page/group policy
+  references; Update Preferences includes `features_page`'s `features_group`.
+  Nil fails closed, empty tasks disappear, and returned snapshots do not
+  expose mutable model state. Next/Back emit no settings or feature
+  operation. The welcome entry is a clean hero screen displaying the
+  adaptive Project Bluefin vector wordmark, not a decision step. The dialog,
+  `internal/views.FirstRunAssistant`, renders each choice as a real control
+  and never as a placeholder, and it implements none of them itself: it
+  acts through `views.SetupHost` (`internal/views/setup_host.go`, which
+  `UserHome` implements). An Appearance switch flips the Livery page's own
+  switch (`SetLiveryEnabled`), so the page's handler runs under its gate and
+  the page shows the result; a collection row installs through
+  `ConnectBundleInstall`, the one per-collection gate the Apps page's rows
+  also use, so every Install button for a collection shows one phase; an
+  Update Preferences switch is bound to the `io.projectbluefin.chairlift.updates`
+  key its `Choice.ID` spells, from the same `pageview.UpdateSourcePreferences`
+  table the Preferences dialog renders. Because the pages are the actors,
+  nothing is refreshed when the dialog closes and the two surfaces cannot
+  start conflicting actions. A row stays insensitive and says so until its
+  page has loaded (`OnLiveryLoaded`, `OnBundlesLoaded`,
+  `OnUpdateSourcesRendered`); a flip the page cannot take is restored with a
+  toast, never left showing an unapplied state. Every widget and signal is
+  built once, in `buildUI`; `Present` rebuilds only the pure model. Skip
+  (Get Moving) and an intentional dismissal — Escape, the close button, a
+  click outside — record the same disposition through
+  `firstrun.RecordSkip`, which preserves an existing completion; Finish
+  records `completed` plus the version; a crash records nothing. Under
+  `--dry-run` the assistant persists nothing and binds nothing: disposition
+  writes and preference toggles are `[DRY-RUN] would set …` log lines, which
+  `test/e2e/features/setup.feature` asserts on Dakota. The automatic
+  presentation is suppressed under `--dry-run`, so the suite and
+  `capture_walkthrough.sh` open it with `--setup` (the `@args.--setup`
+  scenario tag); no `chairlift_e2e` stub is involved. `firstrun.Keys` and the
+  `pageview.UpdateSourcePreferences` keys are held to the shipped schemas by
+  `internal/installcheck/firstrunschema_test.go`.
 - **The Homebrew executable has one resolution.** `internal/homebrew.ExecutablePath`
   is the only place ChairLift decides which `brew` it means: the `brew` that
   `$PATH` resolves, or `/home/linuxbrew/.linuxbrew/bin/brew` when `$PATH` has

@@ -9,6 +9,30 @@ schedule choosers, no feature grids.
 
 ---
 
+## Setup Assistant
+
+![Setup Assistant](screenshots/0-setup.png)
+
+The first time Control Center opens it behaves like a short wizard, over the
+ordinary window. The welcome screen offers two ways in: **Get Moving** closes
+it and leaves you on the control panel, and **Configure Everything** walks
+through at most three optional steps — **Appearance**, **Apps**, and
+**Update Preferences** — each a page's own controls, so a switch you flip
+here is the same switch on that page, already set when you get there.
+Appearance offers the three icon marks from the Livery page; Apps lists the
+app collections this system offers, each with its own **Install** button;
+Update Preferences has the same four source switches as **Preferences**. A
+choice this computer cannot apply stays locked and says why, and a step with
+nothing to offer is simply not shown.
+
+Every way out is remembered: **Get Moving**, closing the dialog, and
+**Finish** all mean the assistant does not return on its own, and finishing
+setup is never undone by opening it again. It is always one menu item away
+afterwards — **Setup Assistant…** in the main menu, or `chairlift --setup` —
+and after that the app is the control panel below.
+
+---
+
 ## Updates
 
 ![Updates](screenshots/1-updates.png)

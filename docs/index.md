@@ -46,6 +46,7 @@ always retained so the window always has a valid destination.
 | Flag | Description |
 |------|-------------|
 | `--dry-run`, `-d` | Run without making any changes to the system. Propagated to all package manager wrappers. |
+| `--setup`, `-s` | Open the Setup Assistant, even when setup was already completed or skipped and even under `--dry-run`. Against a running instance it re-opens the assistant there. |
 
 ## Optional Dependencies
 

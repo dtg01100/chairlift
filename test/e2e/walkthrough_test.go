@@ -149,9 +149,14 @@ func TestWalkthroughScreenshots(t *testing.T) {
 
 	geometry, cropped := readWindowGeometry(t, outDir)
 
-	frames := make(map[string]string, len(names))
-	for index, name := range names {
-		path := filepath.Join(outDir, fmt.Sprintf("%d-%s.xwd", index+1, name))
+	// The setup assistant is captured first, before any page: the script
+	// launches with --setup, so the frame shows the welcome screen over the
+	// Updates page. It is checked like a page and must differ from every
+	// page frame, which proves the dialog was actually on screen.
+	captures := append([]string{"setup"}, names...)
+	frames := make(map[string]string, len(captures))
+	for index, name := range captures {
+		path := filepath.Join(outDir, fmt.Sprintf("%d-%s.xwd", index, name))
 		t.Run(name, func(t *testing.T) {
 			// The assertions below run against the full root frame, so the
 			// fixed-size and variance checks stay meaningful; only the PNG
@@ -192,11 +197,13 @@ func TestWalkthroughScreenshots(t *testing.T) {
 	}
 
 	// If accelerator delivery silently failed, every capture would be the
-	// same page. Distinct frames are what proves navigation actually moved.
+	// same page. Distinct frames are what proves navigation actually moved;
+	// the setup frame differing from the Updates frame proves the assistant
+	// was on screen and Escape dismissed it.
 	seen := make(map[string]string, len(frames))
 	for name, digest := range frames {
 		if previous, duplicate := seen[digest]; duplicate {
-			t.Errorf("pages %q and %q captured identical frames; the Alt+<number> accelerator did not navigate", previous, name)
+			t.Errorf("captures %q and %q are identical frames; the Alt+<number> accelerator did not navigate, or the setup assistant never presented", previous, name)
 			continue
 		}
 		seen[digest] = name

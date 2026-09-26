@@ -1,8 +1,9 @@
 # Spec: Optional setup step model
 
 `internal/firstrun.AssistantModel` provides the pure navigation and choice
-contract consumed by the transient setup dialog. This specifies issue #224's
-model, not the dedicated GTK controls and persistence callbacks owned by #225.
+contract consumed by the setup dialog, `internal/views.FirstRunAssistant`.
+This specifies the model (issue #224) and the dialog adapter that renders
+each choice as a real control (issue #225).
 
 ## Interface
 
@@ -29,9 +30,23 @@ model, not the dedicated GTK controls and persistence callbacks owned by #225.
   not a synthetic Updates policy. Configuration cannot elevate host support.
 - **delivered-controls:** The candidate inventory references existing icon
   operations, Homebrew collections, and source preferences only. No speculative
-  avatar/wallpaper backend or optional activation is required. The adapter MUST
-  further restrict offers for desktop/async readiness and omit controls it has
-  not implemented; it MUST NOT substitute a config-only predicate.
+  avatar/wallpaper backend or optional activation is required. The adapter
+  renders every offered choice as a real control and MUST NOT ship a
+  placeholder or a description standing in for one: an Appearance choice is
+  the Livery page's own switch row, the Apps choice is one row with an
+  Install button per collection the Apps page discovered, and an Update
+  Preferences choice is a switch bound to the `updates` schema key spelled by
+  its `Choice.ID`. The adapter MUST further restrict offers for desktop/async
+  readiness (a row stays insensitive until its page has loaded, and says so)
+  and it MUST NOT substitute a config-only predicate.
+- **one-owner-per-setting:** The adapter MUST act through `views.SetupHost`
+  — the pages' own handlers — never through a second implementation: an
+  Appearance switch flips the Livery page's switch so its handler runs under
+  its gate, a collection installs through the Apps page's shared
+  per-collection gate so both surfaces show one phase, and an update source
+  binds the same GSettings key the Preferences dialog binds. The pages are
+  therefore never out of date when the dialog closes, and the main window
+  and the assistant cannot start conflicting actions.
 - **navigation-only:** Construction, Configure, Next and Back MUST NOT run
   tools, change preferences, install software, or alter primary navigation or
   accelerators. Moving onto the final step MUST still present it; advancing
@@ -39,15 +54,24 @@ model, not the dedicated GTK controls and persistence callbacks owned by #225.
 - **optional-exit:** Skip and intentional Dismiss MUST be available at any
   stage and emit the same remembered effect: `skipped`, preserving an existing
   `completed` disposition on explicit reopening. A crash emits no decision.
-  The adapter owns persistence, dry-run suppression and write-error reporting.
+  The adapter owns persistence (`firstrun.RecordSkip` for Get Moving and for
+  a close — Escape, the close button, a click outside — that reached no
+  decision), dry-run suppression and write-error reporting. Under `--dry-run`
+  the adapter MUST persist nothing and bind nothing: disposition writes and
+  update-preference toggles are logged as `[DRY-RUN] would set …` lines.
 - **snapshot:** Returned slices MUST NOT allow callers to alter internal
   choices, policy references, or later assistant sessions.
 
 `flow_test.go` covers zero/all/subset sequences, each original policy exclusion
 and capability truth table, cross-namespace filtering, compound requirements,
 Skip/dismissal/Back/Next/Finish, snapshot isolation and unchanged sidebar bindings.
-Tests run in the ordinary filtered headless unit gate; they do not certify GTK
-interaction or an optional action's backend behavior.
+`firstrun_test.go` covers the GSettings store's write shape, its dry-run
+silence, its listing parser and `RecordSkip`. Tests run in the ordinary
+filtered headless unit gate; they do not certify GTK interaction. The dialog
+itself is certified by `test/e2e/features/setup.feature` through AT-SPI on
+Dakota: presentation from the menu and from `--setup`, Get Moving, Escape,
+the three steps, Back, reopening, and each step's controls acting through
+its page under `--dry-run`.
 
 ## References
 
@@ -55,4 +79,5 @@ interaction or an optional action's backend behavior.
   and [pure leaf packages ADR](../adr/0007-pure-leaf-packages-route-around-untestable-gtk.md)
 - Context: [architecture](../design/overview.md#optional-setup-model)
 - Implementation plan: [#224](https://github.com/projectbluefin/chairlift/issues/224)
-- Dialog adapter: [#225](https://github.com/projectbluefin/chairlift/issues/225)
+- Dialog adapter: [#225](https://github.com/projectbluefin/chairlift/issues/225),
+  implemented by `internal/views/firstrun.go` over `internal/views/setup_host.go`

@@ -17,11 +17,15 @@ Scenario tags select fixtures:
                      scenario before ChairLift starts (fake executables on
                      PATH, pre-seeded files in HOME).
     @no-app          Do not launch ChairLift for this scenario.
+    @args.<flag>     Pass one extra command-line option at launch, e.g.
+                     @args.--setup to open the setup assistant the way a
+                     first run or `chairlift --setup` does. Repeatable.
     @known_issue.<N> A confirmed defect tracked by issue N. Skipped unless
                      CHAIRLIFT_ATSPI_KNOWN_ISSUES=1, so the scenario stays
                      written and runnable while the fix is outstanding.
 
-The application always runs with --dry-run.
+The application always runs with --dry-run; @args adds to that, never
+replaces it.
 """
 
 import json
@@ -114,6 +118,7 @@ def parse_tags(tags):
     config_name = DEFAULT_CONFIG
     env = {}
     stub_names = []
+    args = []
     launch = True
     for tag in tags:
         if tag.startswith("config."):
@@ -123,9 +128,11 @@ def parse_tags(tags):
             env[key] = value
         elif tag.startswith("stub."):
             stub_names.append(tag[len("stub."):])
+        elif tag.startswith("args."):
+            args.append(tag[len("args."):])
         elif tag == "no-app":
             launch = False
-    return config_name, env, stub_names, launch
+    return config_name, env, stub_names, args, launch
 
 
 def before_scenario(context, scenario):
@@ -139,7 +146,8 @@ def before_scenario(context, scenario):
         context.app_process = None
         context.app = None
         return
-    config_name, overrides, stub_names, launch = parse_tags(tags)
+    config_name, overrides, stub_names, args, launch = parse_tags(tags)
+    context.launch_args = args
 
     # behave discards attributes set during a scenario when it ends, so the
     # counter lives on the run-wide userdata instead.
@@ -206,7 +214,7 @@ def launch_app(context, binary):
     context.log_path = os.path.join(context.scenario_dir, "chairlift.log")
     log = open(context.log_path, "wb")
     context.app_process = subprocess.Popen(
-        [binary, "--dry-run"],
+        [binary, "--dry-run", *getattr(context, "launch_args", [])],
         cwd=context.scenario_dir,
         env=context.launch_env,
         stdout=log,
