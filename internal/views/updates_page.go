@@ -174,6 +174,7 @@ func (uh *UserHome) loadUntrustedTaps() {
 
 	sgtk.RunOnMainThread(func() {
 		uh.brewTrustRows = make(map[string]*adw.ActionRow)
+		uh.trustButtons.clear()
 		for _, tap := range taps {
 			t := tap // capture
 			presentation := pageview.UntrustedTap(t.Name, t.Formulae, t.Casks)
@@ -184,10 +185,9 @@ func (uh *UserHome) loadUntrustedTaps() {
 			trustBtn := gtk.NewButtonWithLabel("Trust…")
 			trustBtn.SetValign(gtk.AlignCenterValue)
 			btn := trustBtn
-			clickedCb := func(_ gtk.Button) {
+			uh.trustButtons.connect(trustBtn, func(gtk.Button) {
 				uh.confirmTrustTap(t, btn)
-			}
-			trustBtn.ConnectClicked(&clickedCb)
+			})
 			row.AddSuffix(&trustBtn.Widget)
 
 			uh.brewTrustGroup.Add(&row.Widget)
@@ -209,15 +209,14 @@ func (uh *UserHome) confirmTrustTap(tap homebrew.UntrustedTap, button *gtk.Butto
 	dialog.AddResponse("trust", "Trust")
 	dialog.SetResponseAppearance("trust", adw.ResponseSuggestedValue)
 
-	responseCb := func(_ adw.AlertDialog, response string) {
+	uh.confirmations.connect(dialog, func(response string) {
 		if response != "trust" {
 			return
 		}
 		button.SetSensitive(false)
 		button.SetLabel("Trusting…")
 		go uh.trustTap(tap, button)
-	}
-	dialog.ConnectResponse(&responseCb)
+	})
 	dialog.Present(&uh.updatesPrefsPage.Widget)
 }
 
@@ -241,6 +240,7 @@ func (uh *UserHome) trustTap(tap homebrew.UntrustedTap, button *gtk.Button) {
 			if row, ok := uh.brewTrustRows[tap.Name]; ok {
 				uh.brewTrustGroup.Remove(&row.Widget)
 				delete(uh.brewTrustRows, tap.Name)
+				uh.trustButtons.forget(button)
 			}
 			if len(uh.brewTrustRows) == 0 {
 				uh.brewTrustGroup.SetVisible(false)
@@ -321,6 +321,7 @@ func (uh *UserHome) loadOutdatedPackagesGeneration(generation uint64, done func(
 			uh.outdatedRows.Clear(func(row *adw.ActionRow) {
 				uh.outdatedExpander.Remove(&row.Widget)
 			})
+			uh.outdatedButtons.clear()
 		}
 
 		uh.outdatedExpander.SetSubtitle(presentation.Subtitle)
@@ -334,7 +335,7 @@ func (uh *UserHome) loadOutdatedPackagesGeneration(generation uint64, done func(
 			upgradeBtn.SetValign(gtk.AlignCenterValue)
 			upgradeGate := &actionstate.Gate{}
 			pkgName := pkg.Name
-			clickedCb := func(btn gtk.Button) {
+			uh.outdatedButtons.connect(upgradeBtn, func(btn gtk.Button) {
 				if !upgradeGate.TryStart() {
 					return
 				}
@@ -372,6 +373,7 @@ func (uh *UserHome) loadOutdatedPackagesGeneration(generation uint64, done func(
 						}
 						if decision.RemoveRow && uh.outdatedRows.Remove(row, func(row *adw.ActionRow) {
 							uh.outdatedExpander.Remove(&row.Widget)
+							uh.outdatedButtons.forget(upgradeBtn)
 						}) {
 							remaining := uh.updateCounts.Add(badgestate.Homebrew, -1).Count
 							presentation := actionstate.OutdatedPresentation(remaining)
@@ -389,8 +391,7 @@ func (uh *UserHome) loadOutdatedPackagesGeneration(generation uint64, done func(
 						}
 					})
 				}()
-			}
-			upgradeBtn.ConnectClicked(&clickedCb)
+			})
 
 			row.AddSuffix(&upgradeBtn.Widget)
 			uh.outdatedExpander.AddRow(&row.Widget)
@@ -472,6 +473,7 @@ func (uh *UserHome) loadFlatpakUpdatesGeneration(generation uint64) {
 			uh.flatpakUpdatesExpander.Remove(&row.Widget)
 		}
 		uh.flatpakUpdateRows = nil
+		uh.flatpakUpdateButtons.clear()
 
 		uh.flatpakUpdatesExpander.SetSubtitle(status.Subtitle)
 		uh.flatpakUpdatesExpander.SetEnableExpansion(status.Expandable)
@@ -502,7 +504,7 @@ func (uh *UserHome) loadFlatpakUpdatesGeneration(generation uint64) {
 				appName = appID
 			}
 			isUser := update.Installation == "user"
-			clickedCb := func(btn gtk.Button) {
+			uh.flatpakUpdateButtons.connect(updateBtn, func(btn gtk.Button) {
 				btn.SetSensitive(false)
 				btn.SetLabel("Updating…")
 				go func() {
@@ -523,8 +525,7 @@ func (uh *UserHome) loadFlatpakUpdatesGeneration(generation uint64) {
 						uh.loadFlatpakUpdates()
 					})
 				}()
-			}
-			updateBtn.ConnectClicked(&clickedCb)
+			})
 
 			row.AddSuffix(&updateBtn.Widget)
 			uh.flatpakUpdatesExpander.AddRow(&row.Widget)

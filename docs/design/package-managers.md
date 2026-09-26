@@ -217,7 +217,7 @@ The upgrade-failure toast text adapts to whether that UI is actually available: 
 
 ### View-layer page presentation (`internal/views/pageview`)
 
-`internal/views/pageview` is one of the ten puregotk-free leaf packages under
+`internal/views/pageview` is one of the puregotk-free leaf packages under
 `internal/views/`. It owns the widget-independent presentation decisions shared
 by all seven page builders. The GTK files create and mutate widgets, but no longer
 reimplement the variable row text, status text, Help-link inventory, os-release
@@ -295,7 +295,7 @@ Two of the nine small, puregotk-free packages under `internal/views/` (the other
 
 ### View-layer update action state (`internal/views/actionstate`)
 
-`internal/views/actionstate` is one of the ten puregotk-free leaf packages
+`internal/views/actionstate` is one of the puregotk-free leaf packages
 under `internal/views`. It owns the state machines and complete outcome tables
 for the Applications and Updates pages' Homebrew mutation controls:
 
@@ -335,7 +335,7 @@ clear/add bookkeeping; no `_test.go` is added to `internal/views`.
 
 ### View-layer update badge state (`internal/views/badgestate`)
 
-`internal/views/badgestate` is one of the ten puregotk-free leaf packages
+`internal/views/badgestate` is one of the puregotk-free leaf packages
 under `internal/views`. `Counts` replaces the three independent integer fields
 that previously lived on `UserHome` with one mutex-protected owner for Bootc,
 Flatpak, and Homebrew update counts. `Set(source, count)` models a completed
@@ -355,7 +355,7 @@ independent count fields.
 
 ### View-layer Brew bundle state (`internal/views/bundleview`)
 
-`internal/views/bundleview` is one of the ten puregotk-free leaf packages
+`internal/views/bundleview` is one of the puregotk-free leaf packages
 under `internal/views`. It owns the bundle group's load presentation and its
 per-row concurrency state, leaving `applications_page.go` to construct and
 update widgets only.
@@ -379,7 +379,7 @@ button mutation on the main thread.
 
 ### View-layer row bookkeeping (`internal/views/rowset`)
 
-`internal/views/rowset` is one of the ten puregotk-free leaf packages under `internal/views/` (its siblings are `internal/views/actionmsg`, `internal/views/actionstate`, `internal/views/badgestate`, `internal/views/bundleview`, `internal/views/trustmsg`, `internal/views/flatpakstatus`, `internal/views/featurestatus`, `internal/views/progresslog` and `internal/views/pageview`). It holds single-row removal, clear-then-repopulate bookkeeping, and rolling-window eviction for rows a view adds to an expander, so a successful action can remove exactly its row, a later list reload does not accumulate stale rows, and a streamed log does not grow without bound. Like `actionmsg`, `actionstate`, `badgestate`, `bundleview` and `trustmsg`, it exists because `internal/views` itself cannot host a `_test.go` (puregotk panics resolving GTK/graphene shared libraries at package init, before any test runs — `docs/skills/gtk-headless-testing/SKILL.md`); unlike them it imports nothing at all outside the standard library.
+`internal/views/rowset` is one of the puregotk-free leaf packages under `internal/views/` (its siblings are `internal/views/actionmsg`, `internal/views/actionstate`, `internal/views/badgestate`, `internal/views/bundleview`, `internal/views/trustmsg`, `internal/views/flatpakstatus`, `internal/views/featurestatus`, `internal/views/progresslog` and `internal/views/pageview`). It holds single-row removal, clear-then-repopulate bookkeeping, and rolling-window eviction for rows a view adds to an expander, so a successful action can remove exactly its row, a later list reload does not accumulate stale rows, and a streamed log does not grow without bound. Like `actionmsg`, `actionstate`, `badgestate`, `bundleview` and `trustmsg`, it exists because `internal/views` itself cannot host a `_test.go` (puregotk panics resolving GTK/graphene shared libraries at package init, before any test runs — `docs/skills/gtk-headless-testing/SKILL.md`); unlike them it imports nothing at all outside the standard library.
 
 Exported surface:
 
@@ -394,9 +394,15 @@ Exported surface:
 
 `Tracker` has no mutex, generation counter, or in-flight flag by design: GTK main-thread safety is a property of the call site, which keeps the clear-and-repopulate sequence inside a single `sgtk.RunOnMainThread` closure, so the tracker is only ever touched from the main thread. `rowset_test.go` drives several successive simulated loads (including an empty load after a non-empty one) against a fake, non-GTK container and asserts after every load that the container holds exactly that load's rows; a separate case appends rows one at a time with a `TrimTo` after each and asserts the container never exceeds the cap and always holds the newest rows in order.
 
+### View-layer shared signal routing (`internal/views/signalroute`)
+
+`internal/views/signalroute` is one of the puregotk-free leaf packages under `internal/views/`. It exists because puregotk turns each `Connect*` callback into a purego trampoline from a fixed 2000-slot table, reuses a slot only when the same func variable address is connected again, and never frees one when a widget is destroyed; a list that connected a fresh closure per row on every refresh leaked slots until the process panicked. `Table[A]` maps an emitting object's address to its action: `Bind` (replacing a reused address), `Unbind`, `Clear`, `Dispatch`, and `DispatchOnce` for single-shot emitters such as a dialog response. It imports nothing outside the standard library and names no widget type; the argument type is generic.
+
+The GTK half is in `internal/views/widgets.go`. `buttonRoute` holds one `func(gtk.Button)` in a `UserHome` field and connects that same address to every button of one list — installed formulae, installed casks, installed Flatpaks, Homebrew search results, unverified taps, outdated Homebrew tools, and Flatpak updates — so each list costs one trampoline for the process lifetime. Its `clear()` runs beside the row tracker's `Clear`, and a row removed on its own calls `forget`. `dialogRoute` does the same for every confirmation dialog on the Apps and Updates pages; each binding runs once and is forgotten when the dialog responds.
+
 ### View-layer bounded staging output (`internal/views/progresslog`)
 
-`internal/views/progresslog` is one of the ten puregotk-free leaf packages under `internal/views/`. It bounds what the two OS staging handlers render from a streamed run. Like `rowset` it imports nothing outside the standard library (`sync`, `time`) and names no widget type.
+`internal/views/progresslog` is one of the puregotk-free leaf packages under `internal/views/`. It bounds what the two OS staging handlers render from a streamed run. Like `rowset` it imports nothing outside the standard library (`sync`, `time`) and names no widget type.
 
 It exists because of what the obvious rendering costs. `stageexec` emits one `EventMessage` per non-empty output line, and the handlers used to answer each one with its own `sgtk.RunOnMainThread` callback that created a permanent `AdwActionRow`. A stage helper that prints thousands of progress lines therefore queued thousands of main-thread callbacks and left thousands of heavyweight widgets behind for the life of the run — an unresponsive window and unbounded memory (issue #81). Neither half is fixable in isolation: capping rows alone still floods the main thread, and coalescing callbacks alone still accumulates widgets.
 
@@ -414,7 +420,7 @@ Exported surface:
 
 ### View-layer Flatpak update status (`internal/views/flatpakstatus`)
 
-`internal/views/flatpakstatus` is one of the ten puregotk-free leaf packages under `internal/views/`. It turns the outcome of the two Flatpak update queries — how many updates are known, and which of the user/system installations could not be checked — into the Flatpak updates expander's subtitle text plus whether the expander should be expandable. Like `actionmsg`, `actionstate`, `badgestate`, `bundleview`, `trustmsg`, `rowset` and `pageview` it exists because `internal/views` itself cannot host a `_test.go` (puregotk panics resolving GTK/Libadwaita/GLib/graphene shared libraries at package init, before any test runs — `docs/skills/gtk-headless-testing/SKILL.md`); like `rowset` it imports nothing at all outside the standard library (`fmt`).
+`internal/views/flatpakstatus` is one of the puregotk-free leaf packages under `internal/views/`. It turns the outcome of the two Flatpak update queries — how many updates are known, and which of the user/system installations could not be checked — into the Flatpak updates expander's subtitle text plus whether the expander should be expandable. Like `actionmsg`, `actionstate`, `badgestate`, `bundleview`, `trustmsg`, `rowset` and `pageview` it exists because `internal/views` itself cannot host a `_test.go` (puregotk panics resolving GTK/Libadwaita/GLib/graphene shared libraries at package init, before any test runs — `docs/skills/gtk-headless-testing/SKILL.md`); like `rowset` it imports nothing at all outside the standard library (`fmt`).
 
 Exported surface:
 
@@ -431,7 +437,7 @@ The practical consequence is that a total failure — both installations unquery
 
 ### View-layer feature update status (`internal/views/featurestatus`)
 
-`internal/views/featurestatus` is one of the ten puregotk-free leaf packages under `internal/views/`. It owns every string and every decision the Features page's updex update check needs: a feature row's subtitle, whether that feature has an update, and the features group's description. Like `actionmsg`, `actionstate`, `badgestate`, `bundleview`, `trustmsg`, `rowset`, `flatpakstatus` and `pageview` it exists because `internal/views` itself cannot host a `_test.go` (puregotk panics resolving GTK/Libadwaita/GLib/graphene shared libraries at package init, before any test runs — `docs/skills/gtk-headless-testing/SKILL.md`). Unlike them it imports one non-standard-library package, `internal/updex`, for the `CheckResult` type; that is safe because `internal/updex` is itself puregotk-free (`go list -deps ./internal/updex | grep -c puregotk` prints `0`), and `go list -deps ./internal/views/featurestatus | grep -c puregotk` prints `0` too.
+`internal/views/featurestatus` is one of the puregotk-free leaf packages under `internal/views/`. It owns every string and every decision the Features page's updex update check needs: a feature row's subtitle, whether that feature has an update, and the features group's description. Like `actionmsg`, `actionstate`, `badgestate`, `bundleview`, `trustmsg`, `rowset`, `flatpakstatus` and `pageview` it exists because `internal/views` itself cannot host a `_test.go` (puregotk panics resolving GTK/Libadwaita/GLib/graphene shared libraries at package init, before any test runs — `docs/skills/gtk-headless-testing/SKILL.md`). Unlike them it imports one non-standard-library package, `internal/updex`, for the `CheckResult` type; that is safe because `internal/updex` is itself puregotk-free (`go list -deps ./internal/updex | grep -c puregotk` prints `0`), and `go list -deps ./internal/views/featurestatus | grep -c puregotk` prints `0` too.
 
 Exported surface:
 
