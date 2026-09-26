@@ -60,8 +60,10 @@ type Window struct {
 	views        *views.UserHome
 	updateShell  *views.UpdateShell
 	firstRun     *views.FirstRunAssistant
-	updateBadge  *gtk.Label // Noninteractive badge for the updates count
-	navItems     []navigation.Item
+	updateBadge  *gtk.Label        // Noninteractive badge for the updates count
+	navItems     []navigation.Item // Visible primaries: the sidebar rows, actions, and shortcuts
+	navRoutes    []navigation.Item // navItems plus the details they offer; the Resolve inventory
+	backRoute    string            // The primary the shown detail's Back returns to; "" on a primary
 }
 
 func init() {
@@ -146,13 +148,16 @@ func (w *Window) buildUI() {
 	w.capabilities = capability.Detect()
 
 	w.navItems = navigation.VisibleItems(w.effectiveEnabled)
+	w.navRoutes = navigation.VisibleRoutes(w.effectiveEnabled)
 
 	// Create views manager
 	w.views = views.New(w.config, w.capabilities, w)
-	// Wire the Recovery detail navigation before any page can open it. The
-	// Maintenance page opens Recovery; Recovery's back button returns to Maintenance.
+	// Wire the Recovery detail navigation before any page can open it. Both
+	// directions go through navigateToPage: the Maintenance row activates the
+	// detail route and Recovery's back button returns to the primary the
+	// transition named, so neither callback derives a route of its own.
 	w.views.SetOpenRecoveryDetail(w.showRecoveryDetail)
-	w.views.SetCloseRecoveryDetail(w.showMaintenance)
+	w.views.SetCloseRecoveryDetail(w.navigateBack)
 	log.Printf("window: views built in %s", time.Since(start))
 
 	// Initialize unified updates engine
@@ -326,10 +331,13 @@ func (w *Window) buildContentArea() *adw.NavigationPage {
 		}
 	}
 
-	// Recovery is a detail view reached from System, not a sidebar page, so
-	// it is not in navItems. Add it as a content-stack sibling so the System
-	// page can open it and its back button can close it. See #241.
+	// Recovery is a detail reached from Maintenance, not a sidebar page, so it
+	// is not in navItems. It is a content-stack sibling of the primaries and
+	// is registered as constructed so navigateToPage can enter it whenever
+	// navRoutes offers it; Resolve keeps the Maintenance row selected while it
+	// is shown. See #241.
 	if recovery := w.views.RecoveryPage(); recovery != nil {
+		w.pages["recovery"] = recovery
 		w.contentStack.AddNamed(&recovery.Widget, "recovery")
 	}
 
@@ -472,9 +480,13 @@ func (w *Window) setupActions() {
 	}
 }
 
-// navigateToPage navigates to a specific page
+// navigateToPage applies the complete navigation.Resolve transition for a
+// route: the visible sidebar row, the content child, the title, and the
+// collapsed-layout reveal. It is the only method that moves the sidebar
+// selection, and the only one that shows a detail: a detail keeps its
+// ancestor's row selected and records the primary its Back control returns to.
 func (w *Window) navigateToPage(pageName string) {
-	transition, ok := navigation.Resolve(pageName, w.navItems, func(name string) bool {
+	transition, ok := navigation.Resolve(pageName, w.navRoutes, func(name string) bool {
 		_, exists := w.pages[name]
 		return exists
 	})
@@ -483,6 +495,7 @@ func (w *Window) navigateToPage(pageName string) {
 	}
 
 	w.shownRow = transition.SelectedIndex
+	w.backRoute = transition.Back
 	row := w.sidebarList.GetRowAtIndex(int32(transition.SelectedIndex))
 	if row != nil {
 		w.sidebarList.SelectRow(row)
@@ -492,20 +505,22 @@ func (w *Window) navigateToPage(pageName string) {
 	w.splitView.SetShowContent(transition.ShowContent)
 }
 
-// showRecoveryDetail opens the Recovery detail view from System. Recovery is a
-// content-stack sibling of System, not a sidebar page, so it replaces System
-// in the content area and carries its own back button. The System sidebar row
-// stays selected; only the content child changes.
+// showRecoveryDetail opens the Recovery detail from Maintenance through the
+// canonical transition. Resolve enters the detail only when navRoutes offers
+// it and the page was built; otherwise it lands on Maintenance itself.
 func (w *Window) showRecoveryDetail() {
-	w.contentStack.SetVisibleChildName("recovery")
-	w.contentPage.SetTitle("Recovery")
-	w.splitView.SetShowContent(true)
+	w.navigateToPage("recovery")
 }
 
-// showMaintenance returns from Recovery to Maintenance via the normal route, so
-// the sidebar row and transition state stay consistent.
-func (w *Window) showMaintenance() {
-	w.navigateToPage("maintenance")
+// navigateBack returns from the shown detail to the primary its transition
+// named, through the same route as any other navigation. It moves nothing
+// while a primary is shown, and it runs no action: a transition carries only
+// the state the window applies.
+func (w *Window) navigateBack() {
+	if w.backRoute == "" {
+		return
+	}
+	w.navigateToPage(w.backRoute)
 }
 
 // onShowShortcuts shows the keyboard shortcuts window

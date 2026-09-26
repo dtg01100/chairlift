@@ -195,7 +195,7 @@ Global actions have no invented configuration group:
 
 | Existing action | Destination relationship | Single owner |
 | --- | --- | --- |
-| Sidebar/Alt+number/F1 Help; Recovery entry/Back | Primary or detail navigation only | `Window.navigateToPage`; current Recovery callbacks in `internal/window/window.go` must join the canonical transition in #342 |
+| Sidebar/Alt+number/F1 Help; Recovery entry/Back | Primary or detail navigation only | `Window.navigateToPage`; the Recovery callbacks in `internal/window/window.go` (`showRecoveryDetail`, `navigateBack`) resolve the `recovery` route and the transition's `Back` primary through it, so entry keeps the Maintenance row selected and Back returns there without re-running anything (#343). A known primary the caller cannot enter resolves to Help. |
 | Preferences menu aliases; Check action | Opens Updates settings / invokes U1 | `Window.setupActions`, delegating to U11 / U1 rather than owning mutations |
 | Help action | Opens configured website through GIO when present | `Window.setupActions` |
 | Setup Assistant, `--setup`, Configure, Get moving, Back, Next/Finish, dismissal | Global onboarding; not an additional primary destination | `FirstRunAssistant` and its `internal/firstrun` model/store; disposition only, no replay of page mutations |
@@ -245,9 +245,11 @@ does not self-accept or supersede an ADR.
   to Developer Tools; Agents to Local AI tools; Features splits between Apps
   and System; Livery becomes Appearance; Maintenance splits into Storage,
   administrator maintenance and Recovery; Updates' driver/technical identity
-  content moves to System. Replace the current Maintenance→Recovery callbacks
-  with System parentage. Keep update status/settings/sources/changes in Updates.
-  Do not delete original YAML namespaces or hide still-working roots early.
+  content moves to System. Re-parent the Recovery detail under System — its
+  window callbacks already go through `navigateToPage`, so that is a change
+  to the route's `Parent` in `internal/navigation`, not to the window. Keep
+  update status/settings/sources/changes in Updates. Do not delete original
+  YAML namespaces or hide still-working roots early.
 
 ## References
 

@@ -344,24 +344,33 @@ func Bindings(visible []Item) []Binding {
 
 // Resolve derives every state mutation needed to navigate to routeName.
 //
-// It rejects a name the canonical inventory does not declare, and a primary
-// the caller did not offer or vouch for. A detail resolves to its primary
-// ancestor's row index, its own title, and the ancestor its Back control
-// returns to.
+// It rejects a name the canonical inventory does not declare. A primary the
+// caller offers and vouches for resolves to its own row, child, and title. A
+// detail resolves to its primary ancestor's row index, its own title, and the
+// ancestor its Back control returns to.
 //
-// A detail the caller did not offer — unsupported on this host, never
-// constructed, or disabled by configuration — resolves instead to its nearest
-// visible ancestor and, failing that, to Help. Neither path can execute
-// anything: a Transition carries only the state a window applies, and the
-// rejected route's name never reaches it, so a fallback cannot reveal a screen
-// or fire a control the user cannot see.
+// A known route the caller cannot enter — hidden by configuration, floored
+// out by the host's capabilities, or never constructed — never yields a
+// rejection: a detail resolves instead to its nearest visible ancestor and,
+// failing that, to Help, and a primary, which has no ancestor, resolves
+// straight to Help. Only Help itself can fail, when the caller's inventory
+// omits or does not construct the one route VisibleItems always retains.
+// Neither path can execute anything: a Transition carries only the state a
+// window applies, and the rejected route's name never reaches it, so a
+// fallback cannot reveal a screen or fire a control the user cannot see.
 func Resolve(routeName string, visible []Item, available func(string) bool) (Transition, bool) {
 	route, ok := lookup(routeName)
 	if !ok {
 		return Transition{}, false
 	}
 	if isPrimary(route) {
-		return primaryTransition(route.Name, visible, available)
+		if transition, ok := primaryTransition(route.Name, visible, available); ok {
+			return transition, true
+		}
+		// A hidden primary has no ancestor the user could have arrived
+		// from, so Help — the one destination every inventory retains —
+		// is its fallback, exactly as it is a detail's last resort.
+		return primaryTransition(helpRouteName, visible, available)
 	}
 
 	ancestor, index, ancestorVisible := primaryAt(visible, route.Parent)

@@ -443,8 +443,9 @@ func TestVisiblePagesCompactShortcutsAndTransitions(t *testing.T) {
 		}
 	}
 
-	if transition, ok := Resolve("maintenance", visible, func(string) bool { return true }); ok {
-		t.Fatalf("Resolve accepted omitted Maintenance page: %#v", transition)
+	omitted, ok := Resolve("maintenance", visible, func(string) bool { return true })
+	if !ok || omitted.Name != helpRouteName {
+		t.Fatalf("Resolve(omitted Maintenance) = %#v, %v; want the Help fallback", omitted, ok)
 	}
 
 	altBindings := make(map[string]string)
@@ -467,6 +468,66 @@ func TestVisiblePagesCompactShortcutsAndTransitions(t *testing.T) {
 	}
 }
 
+// A known primary the caller cannot enter has no ancestor to return to, so it
+// lands on Help — the one destination VisibleItems always retains — with the
+// same ok=true a hidden detail's fallback carries. Only a name the canonical
+// inventory does not declare is rejected: a deep link to a page the
+// administrator disabled or the host cannot back must still open the window
+// somewhere, and `navigateToPage` returns on !ok without moving anything.
+// See chairlift#343.
+func TestHiddenPrimariesFallBackToHelp(t *testing.T) {
+	allBut := func(hidden ...Ref) func(page, group string) bool {
+		return func(page, group string) bool {
+			for _, ref := range hidden {
+				if ref == (Ref{Page: page, Group: group}) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	agents := routeByName(t, "agents")
+	maintenance := routeByName(t, "maintenance")
+
+	tests := []struct {
+		name    string
+		route   string
+		enabled func(page, group string) bool
+		want    string // the route entered; "" means rejection
+	}{
+		{name: "disabled agents", route: agents.Name, enabled: allBut(agents.Refs...), want: helpRouteName},
+		{name: "disabled maintenance", route: maintenance.Name, enabled: allBut(maintenance.Refs...), want: helpRouteName},
+		{name: "recovery with maintenance hidden", route: "recovery", enabled: allBut(maintenance.Refs...), want: helpRouteName},
+		{name: "unknown name", route: "not-a-route", enabled: everythingEnabled, want: ""},
+		{name: "visible primary", route: maintenance.Name, enabled: everythingEnabled, want: maintenance.Name},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			routes := VisibleRoutes(tt.enabled)
+			transition, ok := Resolve(tt.route, routes, alwaysConstructed)
+			if tt.want == "" {
+				if ok {
+					t.Fatalf("Resolve(%q) = %#v, true; want rejection", tt.route, transition)
+				}
+				return
+			}
+			if !ok {
+				t.Fatalf("Resolve(%q) rejected a known route; want %q", tt.route, tt.want)
+			}
+			want, ok := Resolve(tt.want, routes, alwaysConstructed)
+			if !ok {
+				t.Fatalf("Resolve(%q) rejected the expected destination", tt.want)
+			}
+			if !reflect.DeepEqual(transition, want) {
+				t.Fatalf("Resolve(%q) = %#v, want the %q transition %#v", tt.route, transition, tt.want, want)
+			}
+			if tt.want == helpRouteName && containsPage(routes, tt.route) {
+				t.Fatalf("%q is still offered by VisibleRoutes: this case does not exercise a hidden route", tt.route)
+			}
+		})
+	}
+}
+
 func TestWindowAndAppUseCanonicalNavigation(t *testing.T) {
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
@@ -479,8 +540,9 @@ func TestWindowAndAppUseCanonicalNavigation(t *testing.T) {
 			`w.navigateToPage(name)`,
 			`w.capabilities = capability.Detect()`,
 			`w.navItems = navigation.VisibleItems(w.effectiveEnabled)`,
+			`w.navRoutes = navigation.VisibleRoutes(w.effectiveEnabled)`,
 			`func (w *Window) effectiveEnabled(page, group string) bool {`,
-			`transition, ok := navigation.Resolve(pageName, w.navItems, func(name string) bool {`,
+			`transition, ok := navigation.Resolve(pageName, w.navRoutes, func(name string) bool {`,
 			`w.sidebarList.GetRowAtIndex(int32(transition.SelectedIndex))`,
 			`w.contentStack.SetVisibleChildName(transition.VisibleChild)`,
 			`w.contentPage.SetTitle(transition.Title)`,
@@ -504,6 +566,48 @@ func TestWindowAndAppUseCanonicalNavigation(t *testing.T) {
 			if !strings.Contains(string(source), fragment) {
 				t.Errorf("%s does not contain canonical navigation wiring %q", path, fragment)
 			}
+		}
+	}
+}
+
+// The Recovery detail is entered and left through the same transition as a
+// sidebar row: its open callback resolves the "recovery" route, its Back
+// callback resolves the primary the transition named, and the window
+// registers the built detail as constructed so Resolve can enter it. A window
+// that set the stack child or title for Recovery directly would bypass the
+// row index, the collapsed-layout reveal, and the shownRow invariant, which is
+// the shape chairlift#343 removed.
+func TestRecoveryCallbacksUseTheCanonicalTransition(t *testing.T) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller could not locate navigation_test.go")
+	}
+	path := filepath.Join(filepath.Dir(filename), "..", "window", "window.go")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	source := string(raw)
+
+	for _, fragment := range []string{
+		`w.views.SetOpenRecoveryDetail(w.showRecoveryDetail)`,
+		`w.views.SetCloseRecoveryDetail(w.navigateBack)`,
+		`w.pages["recovery"] = recovery`,
+		`w.backRoute = transition.Back`,
+		`w.navigateToPage("recovery")`,
+		`w.navigateToPage(w.backRoute)`,
+	} {
+		if !strings.Contains(source, fragment) {
+			t.Errorf("%s does not route Recovery through the canonical transition: missing %q", path, fragment)
+		}
+	}
+	for _, bypass := range []string{
+		`SetVisibleChildName("recovery")`,
+		`SetTitle("Recovery")`,
+		`w.navigateToPage("maintenance")`,
+	} {
+		if strings.Contains(source, bypass) {
+			t.Errorf("%s applies Recovery state outside navigation.Resolve: found %q", path, bypass)
 		}
 	}
 }

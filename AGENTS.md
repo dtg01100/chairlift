@@ -366,10 +366,13 @@ An agent must not break these:
   `internal/navigation` package. It also decides route visibility from static
   group configuration: omit a functional page when all of its builder-backed
   groups are disabled, always retain Help, and compact Alt+number over visible
-  pages. Mouse activation and window navigation actions must both call
-  `Window.navigateToPage`, which applies the complete `navigation.Resolve`
-  transition (visible-row index, visible child, title, and collapsed-layout
-  content reveal). Only `navigateToPage` may move the sidebar selection: it
+  pages. Mouse activation, window navigation actions, and the Recovery
+  detail's entry row and Back button must all call `Window.navigateToPage`,
+  which applies the complete `navigation.Resolve` transition against
+  `Window.navRoutes` (`navigation.VisibleRoutes`: the visible primaries plus
+  the details they offer) — visible-row index, visible child, title,
+  collapsed-layout content reveal, and the `Back` primary recorded in
+  `Window.backRoute`. Only `navigateToPage` may move the sidebar selection: it
   records the row in `Window.shownRow`, and one `row-selected` handler,
   connected at build time, re-selects that row because `GtkListBox` selects
   whichever row gains focus (Tab, arrow keys) without emitting
@@ -383,9 +386,15 @@ An agent must not break these:
   accelerator — `Shortcuts` and `Bindings` skip it structurally, so it can
   never be advertised or registered by accident — and `Resolve` enters it only
   when its ancestor is visible and the caller both offers and vouches for it,
-  otherwise falling back to that ancestor and then to Help. Recovery is the
-  live detail: a content-stack child of Maintenance, whose row stays selected
-  while it is shown, with `Back` returning there. **A route's configuration
+  otherwise falling back to that ancestor and then to Help. A known primary
+  the caller cannot enter — disabled by configuration, floored out by
+  capability, or never built — has no ancestor and resolves straight to Help
+  with `ok=true`; `Resolve` rejects only a name the inventory does not declare
+  (#343). Recovery is the
+  live detail: a content-stack child of Maintenance, registered in the
+  window's built pages so `Resolve` can enter it, whose row stays selected
+  while it is shown, with `Back` resolving the recorded primary through
+  `navigateToPage` rather than naming Maintenance itself. **A route's configuration
   identity is never inferred from its display name.** Each route carries
   page-qualified `Refs`, not a group list under a route-owned page field,
   because one destination can consume several namespaces at once: Recovery's

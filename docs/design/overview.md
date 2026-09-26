@@ -1897,23 +1897,35 @@ The accelerators are:
 - `F1` → navigate to Help (the same `win.navigate-help` action as Help's
   current compacted Alt+number binding)
 
-Mouse row activation and keyboard navigation actions both call
-`Window.navigateToPage`. That method calls `navigation.Resolve` against the
-visible inventory, rejects an omitted or unconstructed route, and enters a
-primary by applying all four of its state changes: select the compacted sidebar
-row, set the stack's visible child, update the content-page title, and set
+Mouse row activation, keyboard navigation actions, and the Recovery detail's
+entry row and Back button all call `Window.navigateToPage`. That method calls
+`navigation.Resolve` against `Window.navRoutes` — `navigation.VisibleRoutes`,
+the visible primaries plus the details they offer, computed once beside the
+sidebar's `navItems` — with the window's built pages as the construction seam
+(the Recovery ToolbarView is registered there like any primary), and enters a
+route by applying all of its state changes: select the compacted sidebar row,
+set the stack's visible child, update the content-page title, set
 `NavigationSplitView.show-content` true so a collapsed layout reveals the
-destination. A detail resolves to its ancestor's row index with its own title,
-its own child name, and the ancestor its Back control returns to; a detail the
-caller did not offer resolves to that ancestor and, failing that, to Help, and
-no fallback can reveal a screen or fire a control the user cannot see, because a
-`Transition` carries only the state a window applies. `internal/navigation` tests
-every functional page with all of its groups disabled, each builder-backed group
-individually enabled, the Help-only fallback, compacted indices/accelerators,
-unavailable and unknown rejection, the complete advertised-to-registered
-shortcut inventory, the F1 Help binding, and static app/window wiring. No
-`_test.go` is added to the puregotk-importing `internal/window` or `internal/app`
-packages.
+destination, and record the transition's `Back` primary in `Window.backRoute`.
+A detail resolves to its ancestor's row index with its own title, its own
+child name, and the ancestor its Back control returns to, so Recovery keeps the
+Maintenance row selected while it is shown; `navigateBack` resolves that
+recorded primary through the same path and does nothing while a primary is
+shown. `Resolve` rejects only a name the canonical inventory does not declare.
+A detail the caller did not offer resolves to its ancestor and, failing that,
+to Help; a known primary the caller cannot enter — disabled by configuration,
+floored out by capability, or never built — has no ancestor and resolves
+straight to Help (chairlift#343), so a deep link to a hidden page still opens
+the window somewhere. No fallback can reveal a screen or fire a control the
+user cannot see, because a `Transition` carries only the state a window
+applies. `internal/navigation` tests every functional page with all of its
+groups disabled, each builder-backed group individually enabled, the Help-only
+fallback, compacted indices/accelerators, the hidden-primary and hidden-detail
+fallbacks, unknown-name rejection, the complete advertised-to-registered
+shortcut inventory, the F1 Help binding, and static app/window wiring —
+including that the Recovery callbacks resolve through `navigateToPage` rather
+than setting the stack child or title directly. No `_test.go` is added to the
+puregotk-importing `internal/window` or `internal/app` packages.
 
 The sidebar selection belongs to `navigateToPage` alone. `GtkListBox` selects
 whichever row receives keyboard focus, so Tab and the arrow keys would move the
