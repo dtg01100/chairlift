@@ -16,7 +16,7 @@ from behave import step, then
 import chairlift_atspi as atspi
 from stubs_features import CALLS_LOG, GAMING_COMPONENTS, account_is_developer
 
-UBLUE_HELPER = "/usr/bin/chairlift-ublue-helper"
+UBLUE_HELPER = "/usr/bin/chairlift-helper"
 PULP_ID = "org.gnome.gitlab.cheywood.Pulp"
 OPML_PATH = os.path.join(".local", "share", "chairlift", "developer-feeds.opml")
 

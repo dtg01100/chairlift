@@ -128,7 +128,7 @@ Feature: Updates
     Then the switch in the "Automatic updates" row is on
     When I toggle the switch in the "Automatic updates" row
     Then the action journal records "auto-updates-disable" as dry-run
-    And the journalled command is "pkexec /usr/bin/chairlift-ublue-helper auto-updates-disable --dry-run"
+    And the journalled command is "pkexec /usr/bin/chairlift-helper auto-updates-disable --dry-run"
     And I see "[DRY-RUN] Preview: automatic updates would be turned off — no changes made"
     And the switch in the "Automatic updates" row can be toggled again
     And the switch in the "Automatic updates" row is on
@@ -140,7 +140,7 @@ Feature: Updates
     Then the switch in the "Get updates early" row is off
     When I toggle the switch in the "Get updates early" row
     Then the action journal records "channel-switch" as dry-run
-    And the journalled command is "pkexec /usr/bin/chairlift-ublue-helper channel-switch testing --dry-run"
+    And the journalled command is "pkexec /usr/bin/chairlift-helper channel-switch testing --dry-run"
     And I see "[DRY-RUN] Preview: would switch to the testing channel — no changes made"
     And the switch in the "Get updates early" row can be toggled again
     And the switch in the "Get updates early" row is off
@@ -152,7 +152,7 @@ Feature: Updates
     Then the "Graphics driver" row says "Switch to the NVIDIA (proprietary) driver for your NVIDIA + Intel graphics"
     When I click the "Switch" button in the "Graphics driver" row
     Then the action journal records "driver-switch" as dry-run
-    And the journalled command is "pkexec /usr/bin/chairlift-ublue-helper driver-switch nvidia --dry-run"
+    And the journalled command is "pkexec /usr/bin/chairlift-helper driver-switch nvidia --dry-run"
     And I see "[DRY-RUN] Preview: would switch to the NVIDIA (proprietary) image — no changes made"
     And the "Switch" button in the "Graphics driver" row is sensitive
 

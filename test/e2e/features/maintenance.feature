@@ -130,7 +130,7 @@ Feature: Maintenance and its Recovery detail
     Then a dialog titled "Factory Reset This System?" is shown
     When I choose "Cancel" in the dialog
     Then no dialog is shown
-    And the application log does not contain "chairlift-ublue-helper"
+    And the application log does not contain "chairlift-helper"
     And the action journal is empty
 
   @stub.maintenance_bootc_rollback @stub.maintenance_package_tools
@@ -143,7 +143,7 @@ Feature: Maintenance and its Recovery detail
     Then I see "[DRY-RUN] Preview: would factory reset this system — no changes made"
     And no dialog is shown
     And the action journal records "factory-reset" as dry-run
-    And the journalled command is "pkexec /usr/bin/chairlift-ublue-helper factory-reset --dry-run"
+    And the journalled command is "pkexec /usr/bin/chairlift-helper factory-reset --dry-run"
     And the journalled action carries no argument
     And the action journal has no "rollback" entry
     And I do not see "Factory reset applied"
@@ -160,7 +160,7 @@ Feature: Maintenance and its Recovery detail
     When I click the "Roll Back" button in the "Go back to the previous version" row
     Then I see "[DRY-RUN] Preview: would roll back to the previous system image — no changes made"
     And the action journal records "rollback" as dry-run
-    And the journalled command is "pkexec /usr/bin/chairlift-ublue-helper rollback --dry-run"
+    And the journalled command is "pkexec /usr/bin/chairlift-helper rollback --dry-run"
     And the journalled action carries no argument
     And I do not see "The previous version starts the next time you restart"
     And the "Roll Back" button in the "Go back to the previous version" row is sensitive
