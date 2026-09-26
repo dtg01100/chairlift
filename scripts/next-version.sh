@@ -16,11 +16,14 @@
 # Usage:
 #   scripts/next-version.sh            -> v26.09.0   (or v26.09.1 if 0 exists)
 #   scripts/next-version.sh alpha.1    -> v26.09.0-alpha.1
+#   scripts/next-version.sh alpha.3    -> v26.09.0-alpha.3 (after alpha.2)
 set -euo pipefail
 
 prerelease="${1:-}"
 
-slot="$(date +%y.%m)"
+# NEXT_VERSION_SLOT pins the calendar slot (YY.MM); tests use it so the
+# answer does not depend on today's date.
+slot="${NEXT_VERSION_SLOT:-$(date +%y.%m)}"
 
 # Highest N already tagged in this calendar slot. Release and prerelease tags
 # share the sequence, so an alpha does not silently reuse a released number.
@@ -33,15 +36,25 @@ highest="$(
 		true
 )"
 
+# A prerelease belongs to the version it precedes: while vSLOT.N has only
+# prerelease tags, N is unreleased, so its next prerelease and its final
+# release both stay on N. Only a final vSLOT.N moves the sequence on.
 if [ -z "${highest}" ]; then
 	next=0
-else
+elif git rev-parse -q --verify "refs/tags/v${slot}.${highest}" >/dev/null; then
 	next=$((highest + 1))
+else
+	next="${highest}"
 fi
 
 version="v${slot}.${next}"
 if [ -n "${prerelease}" ]; then
 	version="${version}-${prerelease}"
+fi
+
+if git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+	echo "next-version: ${version} is already tagged" >&2
+	exit 1
 fi
 
 printf '%s\n' "${version}"

@@ -335,8 +335,8 @@ bump: ## tag the next calendar version (YY.MM.N); PRE=alpha.1 for a prerelease
 		exit 1; \
 	fi
 	@echo "Creating new tag..."
-	@version=$$(./scripts/next-version.sh $(PRE)); \
-		git tag -a $$version -m "Version $$version"; \
-		echo "Tagged version $$version"; \
-		echo "Pushing tag $$version to origin..."; \
+	@version=$$(./scripts/next-version.sh $(PRE)) && \
+		git tag -a $$version -m "Version $$version" && \
+		echo "Tagged version $$version" && \
+		echo "Pushing tag $$version to origin..." && \
 		git push origin $$version
