@@ -191,8 +191,9 @@ func (a *FirstRunAssistant) buildUI() {
 	dialog.SetFocus(&primaryBtn.Widget)
 
 	// Configuration Step Screen: a scrolling column of the step's title,
-	// description, its controls, and one reassurance group, with the
-	// Back/Next buttons pinned beneath.
+	// description, its controls and one reassurance group, with the
+	// Back/Next buttons pinned beneath as a bottom bar so they are reachable
+	// without scrolling however many rows a step carries.
 	configClamp := adw.NewClamp()
 	configClamp.SetMaximumSize(560)
 	configBox := gtk.NewBox(gtk.OrientationVerticalValue, 16)
@@ -214,10 +215,11 @@ func (a *FirstRunAssistant) buildUI() {
 
 	// One stack child per step the floor admits, built once from the same
 	// model Present rebuilds: the floor is fixed for the session, so the
-	// steps and their choices are too.
+	// steps and their choices are too. Not homogeneous: each step takes its
+	// own height, so a three-row step does not reserve a longer step's room.
 	stepStack := gtk.NewStack()
 	stepStack.SetTransitionType(gtk.StackTransitionTypeCrossfadeValue)
-	stepStack.SetVexpand(true)
+	stepStack.SetVhomogeneous(false)
 	configBox.Append(&stepStack.Widget)
 
 	infoGroup := adw.NewPreferencesGroup()
@@ -226,9 +228,17 @@ func (a *FirstRunAssistant) buildUI() {
 	infoRow.SetSubtitle(pageview.ConfigStepInfoSubtitle())
 	infoGroup.Add(&infoRow.Widget)
 	configBox.Append(&infoGroup.Widget)
+	configClamp.SetChild(&configBox.Widget)
+
+	scrolled := gtk.NewScrolledWindow()
+	scrolled.SetPolicy(gtk.PolicyNeverValue, gtk.PolicyAutomaticValue)
+	scrolled.SetVexpand(true)
+	scrolled.SetChild(&configClamp.Widget)
 
 	navBox := gtk.NewBox(gtk.OrientationHorizontalValue, 12)
-	navBox.SetMarginTop(20)
+	navBox.SetMarginTop(12)
+	navBox.SetMarginBottom(18)
+	navBox.SetMarginEnd(24)
 	navBox.SetHalign(gtk.AlignEndValue)
 
 	backBtn := gtk.NewButtonWithLabel(pageview.BackAction)
@@ -240,14 +250,10 @@ func (a *FirstRunAssistant) buildUI() {
 	forwardBtn.AddCssClass("pill")
 	navBox.Append(&forwardBtn.Widget)
 
-	configBox.Append(&navBox.Widget)
-	configClamp.SetChild(&configBox.Widget)
-
-	scrolled := gtk.NewScrolledWindow()
-	scrolled.SetPolicy(gtk.PolicyNeverValue, gtk.PolicyAutomaticValue)
-	scrolled.SetPropagateNaturalHeight(true)
-	scrolled.SetChild(&configClamp.Widget)
-	stack.AddNamed(&scrolled.Widget, "config")
+	configView := adw.NewToolbarView()
+	configView.SetContent(&scrolled.Widget)
+	configView.AddBottomBar(&navBox.Widget)
+	stack.AddNamed(&configView.Widget, "config")
 
 	a.dialog = dialog
 	a.stack = stack
@@ -307,8 +313,12 @@ func (a *FirstRunAssistant) buildUI() {
 // buildStep constructs one step's controls into the step stack, keyed on the
 // step ID. Each step is a preferences group of the step's own choices.
 func (a *FirstRunAssistant) buildStep(step firstrun.Step) {
+	// The step's title and description head the screen above the stack, so
+	// the group shows no title of its own: three "Appearance" headings in a
+	// 600-pixel dialog read as a defect. The AT-SPI suite finds the showing
+	// step by that heading and the dialog's title, both of which showStep
+	// sets.
 	group := adw.NewPreferencesGroup()
-	group.SetTitle(step.Title)
 	switch step.ID {
 	case firstrun.StepIDTheme:
 		for _, choice := range step.Choices {
@@ -583,7 +593,11 @@ func (a *FirstRunAssistant) showStep(step firstrun.Step) {
 		a.refreshUpdateRows()
 	}
 	a.stepStack.SetVisibleChildName(step.ID)
+	// Return advances: the forward button is both the default widget and,
+	// on entering a step, the focus. Without moving focus it stays on the
+	// welcome screen's hidden button, and Return re-activates that.
 	a.dialog.SetDefaultWidget(&a.forwardBtn.Widget)
+	a.dialog.SetFocus(&a.forwardBtn.Widget)
 }
 
 // showWelcome returns the dialog to the hero screen.

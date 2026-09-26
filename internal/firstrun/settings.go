@@ -197,12 +197,13 @@ const WriteTimeout = 10 * time.Second
 // decision — without demoting a recorded completion: the assistant stays
 // reachable after setup finished, and a skip there must not overwrite the
 // stronger state. It reports the disposition now recorded and whether a
-// write happened; a read failure is treated as not-addressed so a skip is
-// still recorded rather than lost.
+// write happened. A read that fails refuses the write: with the current
+// state unknown, writing "skipped" could overwrite a completion, and the
+// worst a refusal costs is the assistant returning until the read works.
 func RecordSkip(ctx context.Context, store Store) (recorded Disposition, wrote bool, err error) {
-	current, readErr := store.GetDisposition(ctx)
-	if readErr != nil {
-		current = DispositionNotAddressed
+	current, err := store.GetDisposition(ctx)
+	if err != nil {
+		return DispositionNotAddressed, false, fmt.Errorf("firstrun: reading the disposition before recording a skip: %w", err)
 	}
 	next := SkipPreserving(current)
 	if next == current {

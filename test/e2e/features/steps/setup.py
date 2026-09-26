@@ -58,15 +58,6 @@ def _assistant(context, timeout=atspi.DEFAULT_TIMEOUT):
     return current_dialog(context, timeout=timeout)
 
 
-def _step_group(context, title):
-    """The showing step's preferences group, published as a grouping."""
-    return atspi.find(
-        _assistant(context),
-        lambda n: atspi.role(n) == "grouping" and atspi.name(n) == title,
-        f"a setup step titled {title!r}",
-    )
-
-
 def _row(context, title):
     return atspi.row_containing(_assistant(context), title)
 
@@ -88,10 +79,17 @@ def _texts(root):
 
 @then('the setup assistant shows the "{title}" step')
 def step_shows_step(context, title):
-    """The step's group is showing and the dialog is titled for it."""
-    _step_group(context, title)
-    ok = atspi.poll(lambda: text_present(_assistant(context), title, exact=True))
-    assert ok, f"the setup assistant never titled itself {title!r}"
+    """The step's heading and the dialog's title both read the step's name,
+    and the Back button that only a step carries is on screen."""
+    def check():
+        dialog = _assistant(context, timeout=1)
+        headings = [
+            n for n in atspi.descendants(dialog, only_showing=True)
+            if atspi.role(n) == "label" and atspi.name(n) == title
+        ]
+        return len(headings) >= 2 and atspi.find_all(dialog, lambda n: atspi.is_button(n, "Back"))
+
+    assert atspi.poll(check), f"the setup assistant never showed the {title!r} step"
 
 
 @then('the setup assistant offers the "{label}" button')

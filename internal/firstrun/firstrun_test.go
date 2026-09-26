@@ -439,8 +439,8 @@ func (s *failingStore) SetDisposition(_ context.Context, d Disposition) error {
 // TestRecordSkipPreservesACompletionAndWritesOtherwise is the read-decide-
 // write behind Get Moving and a plain dismissal: a fresh account records a
 // skip, a skipped account is left alone, and a completed account is never
-// demoted. A read failure still records the skip, because the alternative
-// is presenting the assistant on every launch.
+// demoted — which is why a failed read refuses the write rather than
+// guessing the state.
 func TestRecordSkipPreservesACompletionAndWritesOtherwise(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -468,14 +468,17 @@ func TestRecordSkipPreservesACompletionAndWritesOtherwise(t *testing.T) {
 		})
 	}
 
-	t.Run("a read failure still records the skip", func(t *testing.T) {
-		store := &failingStore{readErr: errors.New("dconf is not running")}
+	t.Run("a read failure refuses the write", func(t *testing.T) {
+		// With the current state unknown, writing "skipped" could overwrite
+		// a completion; the read error is returned and nothing is written.
+		boom := errors.New("dconf is not running")
+		store := &failingStore{readErr: boom}
 		got, wrote, err := RecordSkip(context.Background(), store)
-		if err != nil || !wrote || got != DispositionSkipped {
-			t.Fatalf("RecordSkip = (%v, %v, %v), want (skipped, true, nil)", got, wrote, err)
+		if !errors.Is(err, boom) || wrote || got != DispositionNotAddressed {
+			t.Fatalf("RecordSkip = (%v, %v, %v), want (not-addressed, false, %v)", got, wrote, err, boom)
 		}
-		if len(store.written) != 1 || store.written[0] != DispositionSkipped {
-			t.Fatalf("written = %v, want [skipped]", store.written)
+		if len(store.written) != 0 {
+			t.Fatalf("written = %v, want nothing", store.written)
 		}
 	})
 
