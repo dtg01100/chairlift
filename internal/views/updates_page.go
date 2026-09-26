@@ -836,11 +836,8 @@ func (uh *UserHome) loadSystemVersion(group *adw.PreferencesGroup, versionRow *a
 	}
 
 	booted := status.Status.Booted
-	staged := ""
-	if status.Status.Staged != nil {
-		staged = status.Status.Staged.Version()
-	}
-	presentation := pageview.SystemVersionRow(booted.Version(), booted.Timestamp(), staged)
+	staged := status.Status.Staged
+	presentation := pageview.SystemVersionRow(booted.Version(), booted.Timestamp(), staged != nil, staged.Version())
 	detailRows := pageview.SystemVersionDetails(
 		booted.Version(),
 		booted.Timestamp(),

@@ -152,7 +152,7 @@ The Update All group is the one place the *startup* path must not probe provider
 
 ### bootc boot gate
 
-bootc-related UI groups (system page's `bootc_status_group` and updates page's `bootc_updates_group`) are gated on `bootc.IsBootcBootedCached()`, which runs `bootc status --format json` once (via `sync.Once`) and reports true only when the parsed `status.booted` field is non-null. This is deliberately not a sentinel-file check: `/run/ostree-booted` is absent on snow's composefs-based deployments, so relying on it would hide the groups on every snow bootc host. `bootc status` itself exits 0 with a null `booted` entry on non-bootc hosts, so the gate must inspect the JSON body rather than the exit code.
+bootc-related UI groups (system page's `bootc_status_group` and updates page's `bootc_updates_group`) are gated on `bootc.IsBootcBootedCached()`, which reads status once (via `sync.Once`) and reports true only when a booted deployment is found. On a composefs host (the `composefs=` kernel argument) status comes from world-readable deployment state, because bootc 1.16 refuses `bootc status` without root (#381); elsewhere it runs `bootc status --format json`. This is deliberately not a sentinel-file check: `/run/ostree-booted` is absent on snow's composefs-based deployments, so relying on it would hide the groups on every snow bootc host. `bootc status` itself exits 0 with a null `booted` entry on non-bootc hosts, so the gate must inspect the JSON body rather than the exit code.
 
 ### Dry-run mode
 
@@ -1979,7 +1979,7 @@ is handled by the migration described above, not a current System namespace.
 - GTK 4 and libadwaita 1 (shared libraries loaded at runtime by puregotk)
 - Homebrew (optional)
 - Flatpak (optional)
-- `bootc` + `/usr/libexec/bootc-update-stage` (both optional; UI gated on `bootc.IsBootcBootedCached()`, i.e. `bootc status` reporting a non-null `booted` deployment — not on any sentinel file)
+- `bootc` + `/usr/libexec/bootc-update-stage` (both optional; UI gated on `bootc.IsBootcBootedCached()`, i.e. a booted deployment read from composefs state or `bootc status` — not on any sentinel file)
 - Updex features configured on the system (optional; read via Go library, writes via `chairlift-updex-helper`)
 - `/usr/share/ublue-os/image-info.json` (optional; present on Bluefin, Bluefin LTS, and Dakota). Its absence is the normal case on non-Bluefin hosts and hides the three Bluefin-family groups entirely
 - `bootc` (optional; used by `chairlift-ublue-helper` for the release-channel switch)

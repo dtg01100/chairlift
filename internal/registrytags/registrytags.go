@@ -103,6 +103,11 @@ type Tag struct {
 	// (sha256-<hex>.sig) and architecture-suffixed stream tags (lts-amd64)
 	// carry no date — verified 2026-09-22 — and are not errors.
 	Created time.Time
+	// Platforms maps "os/architecture" to the child manifest digest when the
+	// tag resolves to an index; nil for a single-platform manifest. A host
+	// deploys the child, so comparing a deployment to Digest alone would
+	// report an index tag as always changed.
+	Platforms map[string]string
 }
 
 // repository splits a repository reference into the host to reach and the
@@ -300,12 +305,28 @@ func (c *Client) Tag(ctx context.Context, ref, tag string) (Tag, error) {
 
 	var document struct {
 		Annotations map[string]string `json:"annotations"`
+		Manifests   []struct {
+			Digest   string `json:"digest"`
+			Platform *struct {
+				OS           string `json:"os"`
+				Architecture string `json:"architecture"`
+			} `json:"platform"`
+		} `json:"manifests"`
 	}
 	if err := json.Unmarshal(body, &document); err != nil {
 		return Tag{}, fmt.Errorf("resolving %s: registry sent an unreadable manifest: %w", tag, err)
 	}
 
 	resolved := Tag{Name: tag, Digest: response.Header.Get("Docker-Content-Digest")}
+	for _, child := range document.Manifests {
+		if child.Platform == nil || child.Digest == "" {
+			continue
+		}
+		if resolved.Platforms == nil {
+			resolved.Platforms = make(map[string]string)
+		}
+		resolved.Platforms[child.Platform.OS+"/"+child.Platform.Architecture] = child.Digest
+	}
 	if raw := document.Annotations[createdAnnotation]; raw != "" {
 		created, err := time.Parse(time.RFC3339, raw)
 		if err != nil {

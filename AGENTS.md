@@ -559,12 +559,24 @@ An agent must not break these:
   exists to avoid. A failed read is returned to the caller, never cached and
   never replaced by a previous answer. `Catalog` caches in process only,
   bounded by `MaxEntries` and expiring at `TTL`, and its callers run off the
-  GTK main thread, so it must stay safe for concurrent readers. Its one
-  caller is the Recovery page's **Published versions** row
+  GTK main thread, so it must stay safe for concurrent readers. `Catalog`'s
+  one caller is the Recovery page's **Published versions** row
   (`internal/views/versions.go`), which reads only when the user presses
   Check, lists one row per day of the running stream
   (`pageview.PublishedVersions` drops other streams' aliases), and removes the
   last list when a read fails rather than leaving it standing as current.
+  `internal/bootc.CheckUpdate` also calls `Client.Tag` directly on composefs
+  hosts (below); it only compares digests.
+- **Reading OS state never needs a password.** bootc 1.16 refuses
+  `bootc status` and `bootc upgrade --check` without root, which left the
+  operating-system source "not available" on every Dakota host (#381).
+  `internal/bootc/composefs.go` answers both from world-readable state when
+  the kernel booted a composefs deployment (`composefs=` on `/proc/cmdline`):
+  deployment origins under `/sysroot/state/deploy`, the staged marker in
+  `/run/composefs`, `/usr/lib/os-release`, and the registry digest of the
+  booted tag. Only other hosts run the bootc commands. Do not add a pkexec
+  route for reads: a prompt on every launch is the failure this removes, and
+  staging keeps its existing fixed `bootc-update-stage` path.
 - **Agent Mode is one switch on its own page, runs llmman as a user unit,
   and is unprivileged.** It lives on `agents_page`, built by
   `internal/views/agents_page.go`, containing two groups under `agents_group`

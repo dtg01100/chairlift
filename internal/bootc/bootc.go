@@ -1,8 +1,8 @@
 // Package bootc provides an interface to bootc-based system updates.
-// Status reads call `bootc status --format json` directly (unprivileged).
-// Update staging is delegated to the snow-shipped workaround script
-// /usr/libexec/bootc-update-stage via pkexec, because bootc's own
-// registry-transport pull currently fails on snow images.
+// Status and update checks never need root: on a composefs host they are
+// read from on-disk state and the registry (composefs.go), elsewhere from
+// `bootc status` and `bootc upgrade --check` run unprivileged. Update staging
+// is delegated to the fixed /usr/libexec/bootc-update-stage via pkexec.
 package bootc
 
 import (
@@ -11,10 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"os/exec"
 	"sync"
 	"time"
 
+	"github.com/projectbluefin/chairlift/internal/registrytags"
 	"github.com/projectbluefin/chairlift/internal/stageexec"
 )
 
@@ -123,8 +125,23 @@ func parseStatus(data []byte) (*Status, error) {
 	return &s, nil
 }
 
-// GetStatus returns the current bootc host status. Runs unprivileged.
+// hostRoot is the filesystem the composefs reader inspects. Tests replace it.
+var hostRoot fs.FS = os.DirFS("/")
+
+// registryTag resolves an image tag for the root-free update check. Tests
+// replace it so no gated test reaches a registry.
+var registryTag tagResolver = func(ctx context.Context, repository, tag string) (registrytags.Tag, error) {
+	return (&registrytags.Client{}).Tag(ctx, repository, tag)
+}
+
+// GetStatus returns the current bootc host status without root: from
+// composefs state when the host booted from it, otherwise from
+// `bootc status`.
 func GetStatus(ctx context.Context) (*Status, error) {
+	status, err := readComposefsStatus(hostRoot)
+	if !errors.Is(err, errNotComposefs) {
+		return status, err
+	}
 	return getStatusFrom(ctx, bootcCommand)
 }
 

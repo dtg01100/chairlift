@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -93,6 +94,8 @@ type fakeManifest struct {
 	digest      string
 	contentType string
 	annotation  string
+	// platforms, for an index, lists "os/arch" -> child manifest digest.
+	platforms map[string]string
 }
 
 func (f *fakeRegistry) handler(t *testing.T) http.Handler {
@@ -154,6 +157,18 @@ func (f *fakeRegistry) handler(t *testing.T) http.Handler {
 		document := map[string]any{"schemaVersion": 2}
 		if manifest.annotation != "" {
 			document["annotations"] = map[string]string{createdAnnotation: manifest.annotation}
+		}
+		if len(manifest.platforms) > 0 {
+			var children []map[string]any
+			for platform, digest := range manifest.platforms {
+				osName, arch, _ := strings.Cut(platform, "/")
+				children = append(children, map[string]any{
+					"mediaType": "application/vnd.oci.image.manifest.v1+json",
+					"digest":    digest,
+					"platform":  map[string]string{"os": osName, "architecture": arch},
+				})
+			}
+			document["manifests"] = children
 		}
 		writeJSON(w, document)
 	})
@@ -293,6 +308,48 @@ func TestTagReadsTheCreatedAnnotationFromASingleArchManifest(t *testing.T) {
 	want := time.Date(2026, 6, 23, 1, 57, 8, 0, time.UTC)
 	if !tag.Created.Equal(want) {
 		t.Errorf("Created = %s, want %s", tag.Created, want)
+	}
+}
+
+// An index's own digest never equals the platform manifest a host deployed,
+// so a caller comparing against a deployment needs the child digests.
+func TestTagListsThePlatformManifestsOfAnIndex(t *testing.T) {
+	fake := &fakeRegistry{
+		manifests: map[string]fakeManifest{
+			"stable": {
+				digest:      "sha256:index",
+				contentType: "application/vnd.oci.image.index.v1+json",
+				platforms: map[string]string{
+					"linux/amd64": "sha256:amd64child",
+					"linux/arm64": "sha256:arm64child",
+				},
+			},
+			"single": {
+				digest:      "sha256:single",
+				contentType: "application/vnd.oci.image.manifest.v1+json",
+			},
+		},
+	}
+	client, repository := newFake(t, fake)
+
+	index, err := client.Tag(context.Background(), repository, "stable")
+	if err != nil {
+		t.Fatalf("Tag(stable): %v", err)
+	}
+	want := map[string]string{"linux/amd64": "sha256:amd64child", "linux/arm64": "sha256:arm64child"}
+	if !reflect.DeepEqual(index.Platforms, want) {
+		t.Errorf("Platforms = %v, want %v", index.Platforms, want)
+	}
+	if index.Digest != "sha256:index" {
+		t.Errorf("Digest = %q, want the index digest unchanged", index.Digest)
+	}
+
+	single, err := client.Tag(context.Background(), repository, "single")
+	if err != nil {
+		t.Fatalf("Tag(single): %v", err)
+	}
+	if single.Platforms != nil {
+		t.Errorf("single-arch Platforms = %v, want nil", single.Platforms)
 	}
 }
 

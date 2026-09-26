@@ -23,9 +23,19 @@ type AvailableUpdate struct {
 	Digest    string
 }
 
-// CheckUpdate reports whether `bootc upgrade --check` found a newer image.
+// CheckUpdate reports whether a newer image is published for the booted
+// stream. On a composefs host it compares the registry's digest for the
+// booted tag with the booted and staged deployments, without root; elsewhere
+// it runs `bootc upgrade --check`.
 func CheckUpdate(ctx context.Context) (AvailableUpdate, error) {
-	return checkUpdateFrom(ctx, bootcCommand)
+	status, err := readComposefsStatus(hostRoot)
+	if errors.Is(err, errNotComposefs) {
+		return checkUpdateFrom(ctx, bootcCommand)
+	}
+	if err != nil {
+		return AvailableUpdate{}, err
+	}
+	return checkFromRegistry(ctx, status, registryTag)
 }
 
 func checkUpdateFrom(ctx context.Context, executable string) (AvailableUpdate, error) {

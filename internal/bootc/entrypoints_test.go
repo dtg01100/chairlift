@@ -3,11 +3,15 @@ package bootc
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
+
+	"github.com/projectbluefin/chairlift/internal/registrytags"
 )
 
 // installFakeBootc writes an executable named exactly `bootc` into a fresh
@@ -17,6 +21,9 @@ import (
 // reach it from a test is through $PATH.
 func installFakeBootc(t *testing.T, body string) string {
 	t.Helper()
+	// These tests cover the bootc fallback, so the host looks like one that
+	// did not boot from composefs whatever the developer's machine is.
+	withHostRoot(t, fstest.MapFS{})
 	dir := t.TempDir()
 	argvFile := filepath.Join(dir, "argv")
 	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > " + argvFile + "\n" + body
@@ -63,6 +70,7 @@ func TestGetStatusResolvesBootcByNameWithJSONFormatArgs(t *testing.T) {
 
 func TestGetStatusMissingBootcIsNotFound(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
+	withHostRoot(t, fstest.MapFS{})
 
 	_, err := GetStatus(testContext(t))
 	var notFound *NotFoundError
@@ -102,5 +110,44 @@ func TestBootedGateFalseOnMalformedJSON(t *testing.T) {
 
 	if IsBootcBooted(testContext(t)) {
 		t.Error("IsBootcBooted() = true for unparseable status output, want false")
+	}
+}
+
+func withHostRoot(t *testing.T, root fs.FS) {
+	t.Helper()
+	previous := hostRoot
+	hostRoot = root
+	t.Cleanup(func() { hostRoot = previous })
+}
+
+func withRegistryTag(t *testing.T, resolve tagResolver) {
+	t.Helper()
+	previous := registryTag
+	registryTag = resolve
+	t.Cleanup(func() { registryTag = previous })
+}
+
+// On a composefs host the entry points must not run bootc at all: bootc
+// 1.16 refuses both reads to an unprivileged caller.
+func TestEntryPointsOnComposefsNeverRunBootc(t *testing.T) {
+	argv := installFakeBootc(t, "echo 'error: must be executed as the root user' >&2; exit 1\n")
+	withHostRoot(t, dakotaHost())
+	withRegistryTag(t, func(context.Context, string, string) (registrytags.Tag, error) {
+		return registrytags.Tag{Digest: "sha256:newer", Created: time.Date(2026, 9, 26, 0, 0, 0, 0, time.UTC)}, nil
+	})
+
+	status, err := GetStatus(testContext(t))
+	if err != nil || !status.Booted() {
+		t.Fatalf("GetStatus = %+v, %v; want the composefs deployment", status, err)
+	}
+	if !IsBootcBooted(testContext(t)) {
+		t.Fatal("IsBootcBooted = false on a composefs host where bootc status is denied")
+	}
+	update, err := CheckUpdate(testContext(t))
+	if err != nil || !update.Available || update.Version != "20260926" {
+		t.Fatalf("CheckUpdate = %+v, %v; want an available update from the registry", update, err)
+	}
+	if _, err := os.Stat(argv); err == nil {
+		t.Fatal("bootc was executed on a composefs host")
 	}
 }

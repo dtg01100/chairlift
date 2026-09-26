@@ -571,11 +571,22 @@ staging adapter). There is no separate CLI helper binary or Go client library;
 status parsing uses `os/exec`, while stage execution delegates to
 `internal/stageexec`.
 
-### `GetStatus` (unprivileged)
+### `GetStatus` and `CheckUpdate` (unprivileged)
 
-`GetStatus(ctx)` runs `bootc status --format json` with **no** `pkexec` — this is a plain read, safe to call from any goroutine (`internal/bootc/bootc.go`). Output is unmarshaled into `Status{Spec, Status: {Booted, Staged, Rollback}}`, where each of `Booted`/`Staged`/`Rollback` is a `*Deployment` (nil-safe accessors: `ImageRef()`, `Version()`, `Timestamp()`, `Digest()`).
+Neither read ever uses `pkexec`. bootc 1.16 refuses both `bootc status` and `bootc upgrade --check` to an unprivileged caller ("Querying root privilege: This command must be executed as the root user" — verified 2026-09-26 on a Dakota composefs host, issue #381), so on a composefs host they are answered from world-readable state instead (`internal/bootc/composefs.go`):
 
-`GetStatus` is a one-line wrapper: `return getStatusFrom(ctx, bootcCommand)`. The unexported `getStatusFrom(ctx context.Context, name string) (*Status, error)` runs `<name> status --format json`, classifies the error, and parses the output. The executable name is a parameter purely so `bootc_test.go` can drive a `#!/bin/sh` script from `t.TempDir()` on a host with no `bootc` installed. The seam is unexported and its only production call site passes the fixed `bootcCommand` constant, so no caller-supplied or user-derived string can reach it.
+| Field | Source |
+|-------|--------|
+| booted deployment | the `composefs=<id>` kernel argument in `/proc/cmdline` |
+| staged deployment | `depl_id` in `/run/composefs/staged-deployment` |
+| rollback deployment | the newest other deployment under `/sysroot/state/deploy/` |
+| image reference, manifest digest | `/sysroot/state/deploy/<id>/<id>.origin` |
+| booted version | `IMAGE_VERSION` (else `VERSION_ID`) in `/usr/lib/os-release` |
+| rollback timestamp | the rollback origin file's modification time (its version label is root-only) |
+
+`GetStatus` reads that state through `hostRoot` (an `fs.FS`, `os.DirFS("/")` in production); only a host whose command line names no composefs deployment (`errNotComposefs`) falls back to `getStatusFrom(ctx, bootcCommand)`, which runs `bootc status --format json`. A composefs host whose booted origin cannot be read is an error, not "not bootc". `CheckUpdate` on a composefs host resolves the booted tag through `internal/registrytags` (`registryTag`, the tests' seam) and reports an update when the registry's digest — this platform's child manifest when the tag is an index (`Tag.Platforms`) — is neither the booted nor the staged digest; its version is the manifest's created date (`YYYYMMDD`, how these images are versioned). Other hosts run `bootc upgrade --check`. Staged and rollback versions are not readable without root, so the Updates row reports a staged update without a version (`pageview.SystemVersionRow`'s `staged` flag) and Recovery names the rollback by its deployment date.
+
+`getStatusFrom(ctx context.Context, name string) (*Status, error)` runs `<name> status --format json`, classifies the error, and parses the output. The executable name is a parameter purely so `bootc_test.go` can drive a `#!/bin/sh` script from `t.TempDir()` on a host with no `bootc` installed. The seam is unexported and its only production call site passes the fixed `bootcCommand` constant, so no caller-supplied or user-derived string can reach it.
 
 Failures classify into exactly four distinct outcomes, checked in this order — `errors.Is` against `context.DeadlineExceeded`/`context.Canceled`, never `==` on `ctx.Err()`, so a wrapped cause still classifies:
 
@@ -590,7 +601,7 @@ The deadline and cancellation messages differ, and neither surfaces as `signal: 
 
 ### Boot gate semantics
 
-`bootc status` exits 0 with a null `booted` field on hosts that aren't running a bootc deployment at all — so the gate cannot be the exit code. `Status.Booted()` returns `s.Status.Booted != nil`. `IsBootcBooted(ctx)` calls `GetStatus` and returns that boolean (treating any error as "not booted"). `IsBootcBootedCached()` wraps it in a `sync.Once` with a 5s timeout, computing the result once and caching it for the lifetime of the process — this lets multiple view goroutines call it during async startup without triggering redundant `bootc` invocations. **Do not use `/run/ostree-booted`** as a substitute gate: it is absent on snow's composefs-based deployments, so checking for it would hide bootc UI on every snow host.
+`bootc status` exits 0 with a null `booted` field on hosts that aren't running a bootc deployment at all — so the gate cannot be the exit code. `Status.Booted()` returns `s.Status.Booted != nil`. `IsBootcBooted(ctx)` calls `GetStatus` and returns that boolean (treating any error as "not booted"). `IsBootcBootedCached()` wraps it in a `sync.Once` with a 5s timeout, computing the result once and caching it for the lifetime of the process — this lets multiple view goroutines call it during async startup without triggering redundant `bootc` invocations. **Do not use `/run/ostree-booted`** as a substitute gate: it is absent on composefs deployments (Dakota, snow), so checking for it would hide bootc UI on those hosts; the composefs reader keys on the `composefs=` kernel argument instead.
 
 ### `StageUpdate` (privileged, streaming)
 

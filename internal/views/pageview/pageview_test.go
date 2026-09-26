@@ -290,9 +290,10 @@ func TestSystemVersionRowStaysReadable(t *testing.T) {
 	date := parsed.Local().Format("2 January 2006")
 
 	tests := []struct {
-		name                      string
-		version, released, staged string
-		want                      string
+		name                             string
+		version, released, stagedVersion string
+		staged                           bool
+		want                             string
 	}{
 		{
 			name:    "version and date",
@@ -321,19 +322,26 @@ func TestSystemVersionRowStaysReadable(t *testing.T) {
 		},
 		{
 			name:    "an update is waiting",
-			version: "42.20260810", staged: "42.20260901",
+			version: "42.20260810", staged: true, stagedVersion: "42.20260901",
 			want: "You are running version 42.20260810. Version 42.20260901 is ready and installs when you restart",
+		},
+		// A composefs host can say an update is staged without being able
+		// to read its version unprivileged; the row must still say so.
+		{
+			name:    "an update of unknown version is waiting",
+			version: "20260921", staged: true,
+			want: "You are running version 20260921. A new version is ready and installs when you restart",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			row := SystemVersionRow(tt.version, tt.released, tt.staged)
+			row := SystemVersionRow(tt.version, tt.released, tt.staged, tt.stagedVersion)
 			if row.Title != "System version" {
 				t.Fatalf("SystemVersionRow().Title = %q, want %q", row.Title, "System version")
 			}
 			if row.Subtitle != tt.want {
-				t.Fatalf("SystemVersionRow(%q, %q, %q).Subtitle = %q, want %q",
-					tt.version, tt.released, tt.staged, row.Subtitle, tt.want)
+				t.Fatalf("SystemVersionRow(%q, %q, %v, %q).Subtitle = %q, want %q",
+					tt.version, tt.released, tt.staged, tt.stagedVersion, row.Subtitle, tt.want)
 			}
 		})
 	}

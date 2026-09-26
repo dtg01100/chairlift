@@ -187,8 +187,9 @@ func MaintenanceCommand(script string, sudo bool) Command {
 // person can quote in a support request or compare against release notes,
 // and whether a newer one is already waiting. The exact identifiers stay
 // behind SystemVersionDetails, because nobody needs a digest to read their
-// own version.
-func SystemVersionRow(version, released, staged string) Row {
+// own version. staged reports that an update is waiting even when its
+// version cannot be read, which a composefs host cannot do without root.
+func SystemVersionRow(version, released string, staged bool, stagedVersion string) Row {
 	row := Row{Title: "System version"}
 	date := formatReleaseDate(released)
 	switch {
@@ -201,8 +202,8 @@ func SystemVersionRow(version, released, staged string) Row {
 	default:
 		row.Subtitle = "This system's version could not be read"
 	}
-	if staged != "" {
-		row.Subtitle = fmt.Sprintf("%s. Version %s is ready and installs when you restart", row.Subtitle, staged)
+	if staged {
+		row.Subtitle = row.Subtitle + ". " + BootcUpdateSubtitle(true, stagedVersion)
 	}
 	return row
 }
