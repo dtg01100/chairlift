@@ -508,7 +508,8 @@ func TestChannelClassifiesRunningTagPerImage(t *testing.T) {
 	}{
 		{name: "bluefin latest", ref: "ghcr.io/ublue-os/bluefin", tag: "latest", want: ChannelStable},
 		{name: "bluefin stable", ref: "ghcr.io/ublue-os/bluefin", tag: "stable", want: ChannelStable},
-		{name: "bluefin gts", ref: "ghcr.io/ublue-os/bluefin", tag: "gts", want: ChannelStable},
+		// Bluefin has no GTS stream; ChairLift does not offer one.
+		{name: "bluefin gts is not a stream", ref: "ghcr.io/ublue-os/bluefin", tag: "gts", want: ChannelUnknown},
 		{name: "bluefin stable-daily", ref: "ghcr.io/ublue-os/bluefin", tag: "stable-daily", want: ChannelStable},
 		// Retired upstream: ghcr.io/ublue-os/bluefin:beta was 200 on
 		// 2026-08-17 and 404 on 2026-09-21, so it names no stream now.
@@ -569,7 +570,6 @@ func TestTargetTagUsesThePerImageTable(t *testing.T) {
 		// rather than stage a failing bootc transaction.
 		{name: "bluefin latest has no testing counterpart", ref: "ghcr.io/ublue-os/bluefin", tag: "latest", channel: ChannelTesting, wantOK: false},
 		{name: "bluefin stable has no testing counterpart", ref: "ghcr.io/ublue-os/bluefin", tag: "stable", channel: ChannelTesting, wantOK: false},
-		{name: "bluefin gts has no testing counterpart", ref: "ghcr.io/ublue-os/bluefin", tag: "gts", channel: ChannelTesting, wantOK: false},
 		{name: "bluefin lts to testing", ref: "ghcr.io/ublue-os/bluefin", tag: "lts", channel: ChannelTesting, want: "lts-testing", wantOK: true},
 		{name: "bluefin lts-hwe to testing", ref: "ghcr.io/ublue-os/bluefin", tag: "lts-hwe", channel: ChannelTesting, want: "lts-hwe-testing", wantOK: true},
 		{name: "bluefin lts-testing back", ref: "ghcr.io/ublue-os/bluefin", tag: "lts-testing", channel: ChannelStable, want: "lts", wantOK: true},

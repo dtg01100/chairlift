@@ -11,7 +11,7 @@
 # ChairLift already knows the Bluefin-family images:
 #
 #   ghcr.io/ublue-os/bluefin            lts <-> lts-testing, lts-hwe <-> lts-hwe-testing
-#                                       (latest/stable/gts/beta publish no
+#                                       (latest/stable publish no
 #                                       testing tag, so those hosts show the
 #                                       switch as unavailable)
 #   ghcr.io/projectbluefin/bluefin-lts  lts, stable -> testing; testing -> stable

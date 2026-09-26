@@ -1720,14 +1720,17 @@ different things across images. Verified against GHCR by manifest request on
 
 | Image | Stable streams | Testing streams |
 | --- | --- | --- |
-| `ghcr.io/ublue-os/bluefin` | `latest`, `stable`, `stable-daily`, `gts`, `beta`, `lts`, `lts-hwe` | `lts-testing`, `lts-hwe-testing` |
+| `ghcr.io/ublue-os/bluefin` | `latest`, `stable`, `stable-daily`, `lts`, `lts-hwe` | `lts-testing`, `lts-hwe-testing` |
 | `ghcr.io/projectbluefin/bluefin-lts` | `lts`, `stable` | `testing` |
 | `ghcr.io/projectbluefin/dakota` | `latest`, `stable` | `testing` |
+
+Bluefin has no GTS stream, and ChairLift offers none: `gts` classifies as an
+unknown channel and has no driver variants.
 
 Two consequences follow, both of which a tag-only mapping gets wrong:
 
 - `ghcr.io/ublue-os/bluefin:testing` does not exist. A Bluefin Stable host on
-  `latest`, `stable`, `gts`, or `beta` has **no testing counterpart**, and the
+  `latest` or `stable` has **no testing counterpart**, and the
   Testing Channel switch is correctly rendered insensitive there. Only the
   `lts` and `lts-hwe` streams on that image are switchable.
 - `ghcr.io/projectbluefin/bluefin-lts:lts-testing` does not exist either; that

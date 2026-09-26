@@ -121,7 +121,6 @@ type imageChannels struct {
 //
 //	ghcr.io/ublue-os/bluefin:latest                 200
 //	ghcr.io/ublue-os/bluefin:stable                 200
-//	ghcr.io/ublue-os/bluefin:gts                    200
 //	ghcr.io/ublue-os/bluefin:beta                   200
 //	ghcr.io/ublue-os/bluefin:lts                    200
 //	ghcr.io/ublue-os/bluefin:lts-testing            200
@@ -144,7 +143,6 @@ type imageChannels struct {
 //	ghcr.io/ublue-os/bluefin:latest                      200
 //	ghcr.io/ublue-os/bluefin:stable                      200
 //	ghcr.io/ublue-os/bluefin:stable-daily                200
-//	ghcr.io/ublue-os/bluefin:gts                         200
 //	ghcr.io/ublue-os/bluefin:lts                         200
 //	ghcr.io/ublue-os/bluefin:lts-hwe                     200
 //	ghcr.io/ublue-os/bluefin:lts-testing                 200
@@ -154,14 +152,12 @@ type imageChannels struct {
 //	ghcr.io/ublue-os/bluefin-nvidia:latest               200
 //	ghcr.io/ublue-os/bluefin-nvidia:stable               200
 //	ghcr.io/ublue-os/bluefin-nvidia:stable-daily         200
-//	ghcr.io/ublue-os/bluefin-nvidia:gts                  200
 //	ghcr.io/ublue-os/bluefin-nvidia:beta                 200  <- base is 404, so unreachable
 //	ghcr.io/ublue-os/bluefin-nvidia:lts                  404
 //	ghcr.io/ublue-os/bluefin-nvidia:lts-hwe              404
 //	ghcr.io/ublue-os/bluefin-nvidia-open:latest          200
 //	ghcr.io/ublue-os/bluefin-nvidia-open:stable          200
 //	ghcr.io/ublue-os/bluefin-nvidia-open:stable-daily    200
-//	ghcr.io/ublue-os/bluefin-nvidia-open:gts             200
 //	ghcr.io/ublue-os/bluefin-nvidia-open:beta            404
 //	ghcr.io/ublue-os/bluefin-nvidia-open:lts             404
 //	ghcr.io/ublue-os/bluefin-nvidia-open:lts-hwe         404
@@ -174,7 +170,6 @@ type imageChannels struct {
 //	ghcr.io/projectbluefin/dakota:testing                200
 //	ghcr.io/projectbluefin/dakota:next                   200
 //	ghcr.io/projectbluefin/dakota:btw                    200
-//	ghcr.io/projectbluefin/dakota:gts                    404
 //	ghcr.io/projectbluefin/dakota:beta                   404
 //	ghcr.io/projectbluefin/dakota-nvidia:latest          404  <- was 200 on 2026-08-17
 //	ghcr.io/projectbluefin/dakota-nvidia:stable          200
@@ -226,11 +221,11 @@ type imageChannels struct {
 // override rather than by editing this map; see channels.go.
 var imageChannelMap = map[string]imageChannels{
 	// Bluefin Stable and the LTS streams published on the same image. Only
-	// the LTS streams have testing counterparts; latest/stable/stable-daily/gts
+	// the LTS streams have testing counterparts; latest/stable/stable-daily
 	// do not, so a Bluefin Stable host correctly offers no channel switch.
 	// "beta" is gone: it was 200 on 2026-08-17 and 404 on 2026-09-21.
 	"ghcr.io/ublue-os/bluefin": {
-		stableTags:  []string{"latest", "stable", "stable-daily", "gts", "lts", "lts-hwe"},
+		stableTags:  []string{"latest", "stable", "stable-daily", "lts", "lts-hwe"},
 		testingTags: []string{"lts-testing", "lts-hwe-testing"},
 		toTesting: map[string]string{
 			"lts":     "lts-testing",
@@ -566,7 +561,7 @@ func (i Info) Channel() Channel {
 // tag whose image publishes no testing counterpart.
 //
 // That last case is not hypothetical: it is every ghcr.io/ublue-os/bluefin
-// host on latest, stable, gts, or beta.
+// host on latest or stable.
 func TargetTag(cleanRef, currentTag string, channel Channel) (string, bool) {
 	if currentTag == "" {
 		return "", false

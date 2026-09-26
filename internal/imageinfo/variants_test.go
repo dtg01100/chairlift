@@ -72,6 +72,14 @@ func TestAvailableDriversAreStreamDependent(t *testing.T) {
 			want: []Driver{DriverStandard, DriverNVIDIA, DriverNVIDIAOpen},
 		},
 		{
+			// Bluefin has no GTS stream, so ChairLift offers no driver
+			// switch on it.
+			name: "bluefin gts is not a stream",
+			ref:  "ghcr.io/ublue-os/bluefin",
+			tag:  "gts",
+			want: nil,
+		},
+		{
 			// The correction: ghcr.io/ublue-os/bluefin-nvidia:lts is a 404,
 			// so an LTS host has no driver choice at all. finupdate's
 			// family-level variant list would offer it.
