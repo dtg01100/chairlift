@@ -226,6 +226,11 @@ An agent must not break these:
   `buildUpdatesPage`'s preferences page, which `buildContentArea` mounts
   beneath the shell's source rows through `UpdateShell.SetSecondaryContent`;
   without that call none of those controls is reachable.
+  A provider that learns only during `Check` that the host cannot back it
+  (the operating-system source finding bootc not booted) wraps
+  `updateflow.ErrUnavailable`; the coordinator then shows the source as not
+  available and excludes it, rather than failing the whole check and
+  printing the internal error as the page's description.
   The operating-system source must keep going through `internal/bootc`'s
   staging path. Adding a
   `bootc upgrade` route to `chairlift-ublue-helper` would break both the

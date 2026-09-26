@@ -67,6 +67,11 @@ func TestOperatingSystemSelectionMatrix(t *testing.T) {
 				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
 					t.Fatalf("Check() error = %v, want substring %q", err, test.wantErr)
 				}
+				// The coordinator shows this as "Not available on this
+				// system", not as a failed check.
+				if !errors.Is(err, updateflow.ErrUnavailable) {
+					t.Fatalf("Check() error = %v, want it to wrap updateflow.ErrUnavailable", err)
+				}
 				return
 			}
 			if err != nil {

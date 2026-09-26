@@ -2,6 +2,7 @@ package updateflow
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/projectbluefin/chairlift/internal/userprefs"
@@ -112,6 +113,12 @@ type ApplyResult struct {
 	Preview         bool
 	RestartRequired bool
 }
+
+// ErrUnavailable, wrapped in a Check error, reports that the host cannot back
+// the source after all — something only a slow probe could tell, such as
+// whether bootc is booted. The coordinator shows the source as not available
+// on this system instead of failing the check.
+var ErrUnavailable = errors.New("updateflow: source is not available on this system")
 
 // Provider supplies read-only checks and mutations for one source.
 type Provider interface {

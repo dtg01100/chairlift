@@ -2,6 +2,7 @@ package updateflow
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -85,9 +86,15 @@ func (c *Coordinator) Check(
 			stateMu.Lock()
 			source := &sources[index]
 			source.Checking = false
-			if err != nil {
+			switch {
+			case errors.Is(err, ErrUnavailable):
+				source.Available = false
+				source.Enabled = false
+				source.Items = nil
+				source.CheckErr = nil
+			case err != nil:
 				source.CheckErr = err
-			} else {
+			default:
 				source.Items = append([]Item(nil), result.Items...)
 				source.CheckErr = nil
 				source.ApplyErr = nil

@@ -12,7 +12,9 @@ import (
 
 const bootcScope = "bootc"
 
-var errOperatingSystemRuntimeUnavailable = errors.New("operating system update transport is runtime-unavailable")
+// errOperatingSystemRuntimeUnavailable wraps updateflow.ErrUnavailable: a host
+// with the stage script but no bootc boot has no operating-system source.
+var errOperatingSystemRuntimeUnavailable = fmt.Errorf("operating system update transport is runtime-unavailable: %w", updateflow.ErrUnavailable)
 
 // OSDeps contains the read, stage, and status operations used by the
 // operating-system provider.

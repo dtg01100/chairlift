@@ -3,6 +3,7 @@ package updateflow
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -957,5 +958,29 @@ func waitForSources(t *testing.T, started <-chan SourceID, wants ...SourceID) {
 		if !seen[want] {
 			t.Fatalf("source %s did not start concurrently; seen %#v", want, seen)
 		}
+	}
+}
+
+// A source can only learn during Check that this host cannot back it — the
+// operating-system provider finds out bootc is not booted. That is "Not
+// available on this system", not a failed check: before this, a stage
+// script without a bootc boot turned the whole Updates page into "Unable to
+// check for updates" with the internal error as its description.
+func TestCheckTreatsUnavailableAsUnsupportedNotFailed(t *testing.T) {
+	apps := &testProvider{id: Applications, available: true, check: func(context.Context) (CheckResult, error) {
+		return CheckResult{}, nil
+	}}
+	osSource := &testProvider{id: OperatingSystem, available: true, check: func(context.Context) (CheckResult, error) {
+		return CheckResult{}, fmt.Errorf("bootc is not booted: %w", ErrUnavailable)
+	}}
+	c := New(providerInterfaces([]*testProvider{apps, osSource}), nil)
+	got := c.Check(context.Background(), allPreferences(), enabledConfiguration(), nil)
+
+	if got.Phase == PhaseCheckFailed {
+		t.Fatalf("phase = PhaseCheckFailed; an unavailable source is not a failed check")
+	}
+	source := got.Sources[1]
+	if source.Available || source.Enabled || source.CheckErr != nil {
+		t.Fatalf("unavailable source = %#v, want Available=false, Enabled=false, CheckErr=nil", source)
 	}
 }
