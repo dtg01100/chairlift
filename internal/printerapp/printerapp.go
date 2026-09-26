@@ -412,11 +412,15 @@ var ErrAdminUnauthenticated = errors.New("printer application web administration
 //
 // No published image can be given either yet: every entrypoint forwards only
 // PORT and a log file, so ChairLift has no way to hand the credential over.
-// The image-side changes are requested in projectbluefin/ghostscript-printer-app#65,
-// hplip-printer-app#51, and gutenprint-printer-app#57; once an image accepts
-// an administration setting, this is where that family starts returning nil
-// and its unit gains the environment line that carries it. Until then every
-// family is refused, and the refusal is the same error Enable returns.
+// The image-side contract is requested in projectbluefin/ghostscript-printer-app#65
+// (mirrored in hplip-printer-app#51 and gutenprint-printer-app#57): the
+// entrypoint is to read PRINTER_APP_AUTH_SERVICE, PRINTER_APP_ADMIN_GROUP,
+// and PRINTER_APP_SERVER_OPTIONS and forward them as -o auth-service, -o
+// admin-group, and -o server-options. Once an image ships that, this is
+// where the family starts returning nil and RenderUnit gains the Environment
+// lines that carry the values; nothing reads or writes those names today.
+// Until then every family is refused, and the refusal is the same error
+// Enable returns.
 func CanEnable(f Family) error {
 	return ErrAdminUnauthenticated
 }

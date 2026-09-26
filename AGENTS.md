@@ -693,8 +693,11 @@ An agent must not break these:
   insensitive, and the subtitle says the administration page cannot be
   secured until the image accepts an administrator credential. No published
   image accepts one yet (ghostscript-printer-app#65, hplip-printer-app#51,
-  gutenprint-printer-app#57), so today every family is locked; do not spell
-  an unshipped environment variable in ChairLift, and do not turn the lock
+  gutenprint-printer-app#57), so today every family is locked. The contract
+  those issues specify — the entrypoint reading `PRINTER_APP_AUTH_SERVICE`,
+  `PRINTER_APP_ADMIN_GROUP`, and `PRINTER_APP_SERVER_OPTIONS` — may be named
+  in comments and docs as what will be wired, but no ChairLift code reads or
+  writes those names until an image ships them; and do not turn the lock
   into a hidden group or a switch that fails on every flip. Readiness on the
   row comes from `printerapp.Observe`/`ProbeActive`/`Resolve` — `systemctl
   --user is-active`'s state *word*, off the main thread — never from the

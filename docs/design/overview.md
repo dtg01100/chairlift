@@ -1695,8 +1695,10 @@ on a non-loopback, authenticated llmman service and open its own firewall.
 quadlet per printer application under `~/.config/containers/systemd`, driven
 with `systemctl --user` in the invoking account, one unit, host port, and
 state volume per app. [ADR-0016](../adr/0016-printer-app-admin-denied-until-authenticated.md)
-is the contract and [printer-applications.md](printer-applications.md) the
-shape. Nothing is privileged: there is no helper subcommand and no PolicyKit
+is the contract; [printer-applications.md](printer-applications.md) records
+the network surface, the family inventory (units, ports, volumes), and the
+published-image state, and this section is the Control Center surface on
+top of it. Nothing is privileged: there is no helper subcommand and no PolicyKit
 action, and the package's one exec site is classified unprivileged in
 `internal/installcheck`'s journal-contract inventory.
 
@@ -1727,8 +1729,15 @@ readiness model, never from the unit file alone (#331, #361):
 — an application may be enabled only when its web administration is
 authenticated or absent — and `Enable` calls it before its dry-run branch, so
 a preview never describes a forbidden change. No published image accepts the
-setting yet (the requests are ghostscript-printer-app#65, hplip-printer-app#51,
-gutenprint-printer-app#57), so today every family resolves to `StateBlocked`:
+setting yet. The image-side contract is specified in
+ghostscript-printer-app#65 (mirrored in hplip-printer-app#51 and
+gutenprint-printer-app#57): the entrypoint reads `PRINTER_APP_AUTH_SERVICE`,
+`PRINTER_APP_ADMIN_GROUP`, and `PRINTER_APP_SERVER_OPTIONS` and forwards them
+as `-o auth-service`, `-o admin-group`, and `-o server-options`. ChairLift
+neither reads nor writes those names today; once an image ships them,
+`CanEnable` returns nil for that family and `RenderUnit` gains the
+`Environment=` lines that carry the values — that is the whole follow-up
+that makes a switch live. Until then every family resolves to `StateBlocked`:
 the row is shown with its switch off **and insensitive** and
 `pageview.PrinterAppSubtitle` says the administration page cannot be secured
 until the image accepts an administrator credential and that the switch
