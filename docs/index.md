@@ -23,11 +23,11 @@ Control Center provides seven configurable pages, in sidebar order:
 |------|-------------|
 | **Updates** | Update everything in one action or per provider: stage bootc system updates, apply Flatpak updates, upgrade Homebrew packages, trust Homebrew taps, read the booted/staged system version, and switch release channel or graphics-driver variant. |
 | **Apps** | Search/install Homebrew formulae and casks; uninstall installed formulae/casks; pin/unpin formulae; install curated app collections. List/uninstall Flatpaks and launch the configured external manager for Flatpak discovery and installation. |
-| **Agents** | Run a language model on this computer, served from a rootless container in your own account. |
-| **Features** | Toggle system features managed by updex, plus Developer Mode, Gaming Mode, and Enhanced Troubleshooting. |
+| **Agents** | Agent Mode: run a language model on this computer — llmman, installed with Homebrew and served as a systemd user unit in your own account. |
+| **Features** | Toggle system features managed by updex, plus Developer Mode and Gaming Mode. |
 | **Livery** | Choose the marks shown on the app-grid button, the top-bar menu, and Files. |
 | **Maintenance** | Free up space, run administrator-configured maintenance scripts, and — when an administrator opts in — Powerwash or Factory Reset. |
-| **Help** | Links to the project website, issue tracker, and community documentation. |
+| **Help** | Enhanced Troubleshooting (an AI diagnostic assistant installed with Homebrew), plus links to the project website, issue tracker, and community documentation. |
 
 A functional page is omitted when all of its groups are disabled. Help is
 always retained so the window always has a valid destination.

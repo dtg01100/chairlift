@@ -1,5 +1,16 @@
 # Plan: Bluefin suite parity
 
+**Status (2026-09-26).** This plan is historical and its body is left as
+written. Several names it uses have since changed in the tree; read them as
+follows:
+
+| Named in the plan | Current name |
+| --- | --- |
+| `internal/updateall` | `internal/updateflow` (the pure update coordinator) |
+| `internal/sysupdate` | removed; OS staging is `internal/bootc` + `internal/stageexec` |
+| `system_page.go` (System page) | removed; system version and release channel live on the Updates page (`internal/views/updates_page.go`) |
+| `chairlift-ublue-helper` | `chairlift-helper` (`cmd/chairlift-helper`, installed at `/usr/bin/chairlift-helper`) |
+
 Brings the functionality of [bluefinctl](https://github.com/projectbluefin/bluefinctl)
 (Textual TUI) and [finupdate](https://github.com/tuna-os/finupdate) (GTK4/Rust)
 into ChairLift, so that one GTK4/Libadwaita application covers system

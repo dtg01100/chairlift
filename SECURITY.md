@@ -18,13 +18,13 @@ security updates.
 
 ## Reporting a Vulnerability
 
-ChairLift ships a privileged `pkexec` helper (`cmd/chairlift-helper`)
-that runs as root, so a flaw in its input validation is high-impact. Thank you
-for helping keep it safe.
+ChairLift ships two privileged `pkexec` helpers (`cmd/chairlift-helper` and
+`cmd/chairlift-updex-helper`) that run as root, so a flaw in their input
+validation is high-impact. Thank you for helping keep them safe.
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-Instead, use GitHub's **Private Vulner Reporting** tool, which routes the
+Instead, use GitHub's **Private Vulnerability Reporting** tool, which routes the
 report directly to the maintainers under GitHub's security embargo policy:
 
 <https://github.com/projectbluefin/chairlift/security>

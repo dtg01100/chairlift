@@ -1,3 +1,9 @@
+// Package userprefs is the pure model of the user's update preferences, read
+// from the io.projectbluefin.chairlift.updates GSettings schema by
+// internal/settings and handed to internal/updateflow's Coordinator. It holds
+// requested participation only: whether a source is actually available on
+// this host is the coordinator's decision, made from each source's
+// updateflow.Policy, so nothing here masks a preference against availability.
 package userprefs
 
 // Values contains the user's requested participation in each update source
@@ -8,23 +14,4 @@ type Values struct {
 	DeveloperTools          bool
 	SystemComponents        bool
 	MaintenanceAfterUpdates bool
-}
-
-// Availability contains the sources that the administrator configuration and
-// runtime checks make available.
-type Availability struct {
-	OperatingSystem  bool
-	Applications     bool
-	DeveloperTools   bool
-	SystemComponents bool
-}
-
-// Effective applies runtime availability to source preferences. Maintenance
-// remains a user preference independent of source availability.
-func Effective(values Values, available Availability) Values {
-	values.OperatingSystem = values.OperatingSystem && available.OperatingSystem
-	values.Applications = values.Applications && available.Applications
-	values.DeveloperTools = values.DeveloperTools && available.DeveloperTools
-	values.SystemComponents = values.SystemComponents && available.SystemComponents
-	return values
 }

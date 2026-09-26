@@ -84,7 +84,9 @@ Those operations belong to the configured external manager.
 `brew_bundles_group` supports:
 
 - `bundles_paths` — directories searched, without recursion, for
-  `*.Brewfile` collections (default: `["/usr/share/ublue-os/homebrew"]`).
+  `*.Brewfile` collections. The built-in default in `internal/config/config.go`
+  is `["/usr/share/ublue-os/homebrew", "/usr/share/chairlift/bundles", "/etc/chairlift/bundles"]`;
+  the shipped `config.yml` narrows it to `["/usr/share/ublue-os/homebrew"]`.
   Missing directories are ignored; other path errors are reported to the log
   while readable directories still contribute rows. Exact duplicate paths are
   collapsed, but same-named files in different directories remain separate.
@@ -98,6 +100,14 @@ and its leading `#` comment is used as the description only when it reads as
 a human sentence rather than a heading or packaging jargon. Each row also
 states how many apps and tools the definition installs, counting entry lines
 other than `tap`.
+
+A failed bundle install reports the cause rather than the progress that
+preceded it: ChairLift reads both of brew's output streams, because
+`brew bundle` replays a failing entry's own installer output on stdout while
+printing its summary on stderr, and shows the first error line it finds in a
+persistent toast. Error toasts wrap, so a long message stays readable. The
+complete captured output — bounded to the last 64 KiB per stream — is written
+to ChairLift's log, which is where to look when filing a bug report.
 
 ### Agents Page (`agents_page`)
 
@@ -141,8 +151,9 @@ authorization rule.
 | Dock Livery | `livery_dock_group` | The Files icon on GNOME or Dolphin on KDE Plasma, set to a CNCF project's color mark fetched from cncf/artwork via a searchable picker; on GNOME it changes Files everywhere GNOME draws it |
 
 Selections persist in the `io.projectbluefin.chairlift.livery` GSettings
-schema, one of the two ChairLift ships (the other,
-`io.projectbluefin.chairlift.updates`, holds the user update preferences). A
+schema, one of the three ChairLift ships (the others,
+`io.projectbluefin.chairlift.updates` and `io.projectbluefin.chairlift.firstrun`,
+hold the user update preferences and the setup assistant's disposition). A
 source build has no installed schema — run `make schemas` and export the
 `GSETTINGS_SCHEMA_DIR` it prints, or the page reports its settings
 unavailable. An install hits the same condition when it ships the schema XML
@@ -151,14 +162,6 @@ the `glib-2.0/schemas` directory of any `$XDG_DATA_DIRS` entry, or the user's
 `~/.local/share/glib-2.0/schemas`); `make install` recompiles the system cache
 for a direct install, and a Homebrew cask has to compile the user directory
 itself.
-
-A failed bundle install reports the cause rather than the progress that
-preceded it: ChairLift reads both of brew's output streams, because
-`brew bundle` replays a failing entry's own installer output on stdout while
-printing its summary on stderr, and shows the first error line it finds in a
-persistent toast. Error toasts wrap, so a long message stays readable. The
-complete captured output — bounded to the last 64 KiB per stream — is written
-to ChairLift's log, which is where to look when filing a bug report.
 
 ### Maintenance Page (`maintenance_page`)
 

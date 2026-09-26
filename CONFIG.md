@@ -21,8 +21,9 @@ Whoever installs the `/usr/share` defaults owns them and may replace them
 during an upgrade. Administrators should put local changes in
 `/etc/chairlift/config.yml`; ChairLift's install paths never create or
 overwrite that file.
-The repository root includes `config.dev.yml` so `go run .` from a checkout can
-load unprivileged development defaults before the package default `config.yml`.
+The repository root includes `config.dev.yml` so `go run ./cmd/chairlift` (or
+`make run`) from a checkout can load unprivileged development defaults before
+the package default `config.yml`.
 
 The first file that exists in this order is authoritative. ChairLift does not
 fall through to a lower-priority file when that file is unreadable, malformed,
@@ -97,8 +98,11 @@ two surviving groups to `updates_page` and remove `system_page` when convenient.
 - `brew_search_group`: Search and install Homebrew formulae and casks
 - `brew_bundles_group`: Curated Homebrew package bundles
   - `bundles_paths`: Array of directories searched for immediate
-    `*.Brewfile` entries (default: `['/usr/share/ublue-os/homebrew']`). Missing
-    directories are ignored so one configuration can cover multiple
+    `*.Brewfile` entries. The built-in default (`internal/config/config.go`,
+    used when no configuration file supplies the field) is
+    `['/usr/share/ublue-os/homebrew', '/usr/share/chairlift/bundles', '/etc/chairlift/bundles']`;
+    the shipped `config.yml` narrows it to `['/usr/share/ublue-os/homebrew']`.
+    Missing directories are ignored so one configuration can cover multiple
     distribution variants. Other unreadable paths are reported in the group
     while bundles from readable paths remain available. Repeating the same
     path does not duplicate a row; same-named Brewfiles in different
@@ -231,7 +235,8 @@ install -D -m 644 config.yml debian/tmp/usr/share/chairlift/config.yml
     (`true` for every group except `maintenance_cleanup_group` and
     `reset_group`, which default to `false`)
   - An omitted optional field (`app_id`, `website`, `issues`, `chat`,
-    `actions`, `bundles_paths`) inherits its documented default value
+    `actions`, `bundles_paths`, `install_pulp`, `stage_feeds`) inherits its
+    documented default value
   - An explicit empty list (e.g. `actions: []`) clears the field
   - A non-empty list, or an explicitly set scalar value, replaces the
     default outright

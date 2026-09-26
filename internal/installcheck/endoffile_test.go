@@ -16,9 +16,10 @@ import (
 // file that ends without a newline and stop, it appends the newline and then
 // fails on the resulting diff. A clean checkout therefore could not pass
 // repository preflight — the run left three tracked files modified
-// (issue #90): the two large application SVGs under data/icons/hicolor/
-// scalable/apps/ and distrobox.ini, all of which ended at their last
-// character.
+// (issue #90): the application SVGs then under data/icons/hicolor/
+// scalable/apps/ (one remains today, io.projectbluefin.chairlift.svg; the
+// symbolic variant lives under symbolic/apps/) and distrobox.ini, all of
+// which ended at their last character.
 //
 // Normalizing those three files fixes today's tree but nothing stops the next
 // design-tool export or hand-edited config from reintroducing the problem,

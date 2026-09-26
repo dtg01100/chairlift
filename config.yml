@@ -88,8 +88,8 @@ features_page:
     # stage_feeds: true
   gaming_group:
     enabled: true
-  # A language model served from a rootless container now lives on its own
-  # Agents page; see agents_page above.
+  # Agent Mode (llmman, installed with Homebrew and run as a systemd user
+  # unit) lives on its own Agents page; see agents_page above.
 
 # Who you are, who you stand with, and what you roll with. Each livery
 # section shadows one icon-theme name in the user's own theme; nothing here
