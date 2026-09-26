@@ -44,6 +44,22 @@ const (
 	StepIDUpdates = "updates"
 )
 
+// Choice identifiers. The Appearance choices name a Livery surface; the
+// Apps choice names the collection group; each Update Preferences choice is
+// spelled exactly as the io.projectbluefin.chairlift.updates key it toggles,
+// so the dialog binds a switch to the key by the choice's ID alone.
+const (
+	ChoiceIDAppGrid    = "app-grid"
+	ChoiceIDFoundation = "foundation"
+	ChoiceIDDock       = "dock"
+	ChoiceIDBundles    = "bundles"
+
+	ChoiceIDApplicationsUpdates     = "applications-enabled"
+	ChoiceIDDeveloperToolsUpdates   = "developer-tools-enabled"
+	ChoiceIDSystemComponentsUpdates = "system-components-enabled"
+	ChoiceIDOperatingSystemUpdates  = "operating-system-enabled"
+)
+
 // Welcome copy has one owner; pageview re-exports it for the hero screen.
 const (
 	WelcomeStepTitle       = "Welcome to Bluefin"
@@ -64,26 +80,26 @@ var candidateSteps = []Step{
 		ID: StepIDTheme, Title: "Appearance",
 		Description: "Choose the icons used on your desktop.",
 		Choices: []Choice{
-			{ID: "app-grid", Title: "App launcher icon", Policy: []PolicyRef{{"livery_page", "livery_app_grid_group"}}},
-			{ID: "foundation", Title: "Top-bar icon", Policy: []PolicyRef{{"livery_page", "livery_foundation_group"}}},
-			{ID: "dock", Title: "Files icon", Policy: []PolicyRef{{"livery_page", "livery_dock_group"}}},
+			{ID: ChoiceIDAppGrid, Title: "App launcher icon", Policy: []PolicyRef{{"livery_page", "livery_app_grid_group"}}},
+			{ID: ChoiceIDFoundation, Title: "Top-bar icon", Policy: []PolicyRef{{"livery_page", "livery_foundation_group"}}},
+			{ID: ChoiceIDDock, Title: "Files icon", Policy: []PolicyRef{{"livery_page", "livery_dock_group"}}},
 		},
 	},
 	{
 		ID: StepIDApps, Title: "Apps",
 		Description: "Choose optional app and tool collections.",
 		Choices: []Choice{
-			{ID: "bundles", Title: "App and tool collections", Policy: []PolicyRef{{"applications_page", "brew_bundles_group"}}},
+			{ID: ChoiceIDBundles, Title: "App and tool collections", Policy: []PolicyRef{{"applications_page", "brew_bundles_group"}}},
 		},
 	},
 	{
 		ID: StepIDUpdates, Title: "Update Preferences",
 		Description: "Choose what to include when checking for updates.",
 		Choices: []Choice{
-			{ID: "applications-enabled", Title: "Applications", Policy: []PolicyRef{{"updates_page", "flatpak_updates_group"}}},
-			{ID: "developer-tools-enabled", Title: "Developer tools", Policy: []PolicyRef{{"updates_page", "brew_updates_group"}}},
-			{ID: "system-components-enabled", Title: "System components", Policy: []PolicyRef{{"features_page", "features_group"}}},
-			{ID: "operating-system-enabled", Title: "Operating system", Policy: []PolicyRef{{"updates_page", "bootc_updates_group"}}},
+			{ID: ChoiceIDApplicationsUpdates, Title: "Applications", Policy: []PolicyRef{{"updates_page", "flatpak_updates_group"}}},
+			{ID: ChoiceIDDeveloperToolsUpdates, Title: "Developer tools", Policy: []PolicyRef{{"updates_page", "brew_updates_group"}}},
+			{ID: ChoiceIDSystemComponentsUpdates, Title: "System components", Policy: []PolicyRef{{"features_page", "features_group"}}},
+			{ID: ChoiceIDOperatingSystemUpdates, Title: "Operating system", Policy: []PolicyRef{{"updates_page", "bootc_updates_group"}}},
 		},
 	},
 }

@@ -16,6 +16,11 @@ import (
 const (
 	walkthroughDoc = "docs/walkthrough.md"
 	screenshotDir  = "docs/screenshots"
+	// setupScreenshot is the one capture that is not a navigable page: the
+	// setup assistant's welcome screen, which capture_walkthrough.sh takes
+	// first by launching with --setup. Every other screenshot is a page.
+	setupScreenshot = "0-setup.png"
+	setupTitle      = "Setup Assistant"
 )
 
 // markdownImage matches an inline image reference and captures its path.
@@ -107,8 +112,31 @@ func TestNoOrphanedScreenshots(t *testing.T) {
 			t.Errorf("%s/%s is not referenced by %s; it is a stale capture", screenshotDir, entry.Name(), walkthroughDoc)
 		}
 	}
-	if found != len(navigation.Items()) {
-		t.Errorf("%s holds %d screenshots, want one per navigable page (%d)", screenshotDir, found, len(navigation.Items()))
+	// One per navigable page, plus the setup assistant's welcome screen.
+	if want := len(navigation.Items()) + 1; found != want {
+		t.Errorf("%s holds %d screenshots, want one per navigable page plus %s (%d)", screenshotDir, found, setupScreenshot, want)
+	}
+}
+
+// The setup assistant is the one screen a first run shows before any page,
+// so the walkthrough opens with it: the capture must exist and the document
+// must show it and name the assistant.
+func TestWalkthroughDocumentsTheSetupAssistant(t *testing.T) {
+	doc := readRepoFile(t, walkthroughDoc)
+
+	path := filepath.Join(RepoRoot(), screenshotDir, setupScreenshot)
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("the setup assistant has no screenshot at %s/%s: %v\nrun `make screenshots`", screenshotDir, setupScreenshot, err)
+	}
+	if info.Size() == 0 {
+		t.Errorf("%s/%s is empty", screenshotDir, setupScreenshot)
+	}
+	if !strings.Contains(doc, "screenshots/"+setupScreenshot) {
+		t.Errorf("%s does not reference screenshots/%s", walkthroughDoc, setupScreenshot)
+	}
+	if !strings.Contains(doc, setupTitle) {
+		t.Errorf("%s never mentions the %q", walkthroughDoc, setupTitle)
 	}
 }
 

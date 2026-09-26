@@ -3,39 +3,20 @@ package window
 import (
 	"github.com/projectbluefin/chairlift/internal/settings"
 	"github.com/projectbluefin/chairlift/internal/updateflow"
+	"github.com/projectbluefin/chairlift/internal/views/pageview"
 
 	"codeberg.org/puregotk/puregotk/v4/adw"
 )
-
-type sourcePreference struct {
-	id  updateflow.SourceID
-	key string
-}
-
-var sourcePreferences = []sourcePreference{
-	{
-		id:  updateflow.OperatingSystem,
-		key: "operating-system-enabled",
-	},
-	{
-		id:  updateflow.Applications,
-		key: "applications-enabled",
-	},
-	{
-		id:  updateflow.DeveloperTools,
-		key: "developer-tools-enabled",
-	},
-	{
-		id:  updateflow.SystemComponents,
-		key: "system-components-enabled",
-	},
-}
 
 func (w *Window) onShowPreferences() {
 	dialog := w.buildPreferences()
 	dialog.Present(&w.Widget)
 }
 
+// buildPreferences builds the Preferences dialog. Its update-source rows
+// come from pageview.UpdateSourcePreferences, the same table the setup
+// assistant's Update Preferences step renders, so both surfaces bind the
+// same keys under the same titles and availability rules.
 func (w *Window) buildPreferences() *adw.PreferencesDialog {
 	dialog := adw.NewPreferencesDialog()
 	dialog.SetTitle("Preferences")
@@ -48,21 +29,12 @@ func (w *Window) buildPreferences() *adw.PreferencesDialog {
 	sourcesGroup.SetTitle("Update sources")
 	states := w.updateSourceStates()
 	ready := w.updateSourcesReady()
-	for _, preference := range sourcePreferences {
+	for _, preference := range pageview.UpdateSourcePreferences {
 		row := adw.NewSwitchRow()
-		switch preference.id {
-		case updateflow.OperatingSystem:
-			row.SetTitle("Operating system")
-		case updateflow.Applications:
-			row.SetTitle("Applications")
-		case updateflow.DeveloperTools:
-			row.SetTitle("Developer tools")
-		case updateflow.SystemComponents:
-			row.SetTitle("System components")
-		}
-		row.SetSubtitle(sourcePreferenceSubtitle(states, ready, preference.id))
-		row.SetSensitive(sourcePreferenceSensitive(states, ready, preference.id))
-		store.BindBoolean(preference.key, &row.Object)
+		row.SetTitle(preference.Title)
+		row.SetSubtitle(pageview.UpdateSourcePreferenceSubtitle(states, ready, preference.ID))
+		row.SetSensitive(pageview.UpdateSourcePreferenceSensitive(states, ready, preference.ID))
+		store.BindBoolean(preference.Key, &row.Object)
 		sourcesGroup.Add(&row.Widget)
 	}
 	page.Add(sourcesGroup)
@@ -88,37 +60,4 @@ func (w *Window) updateSourceStates() []updateflow.SourceState {
 
 func (w *Window) updateSourcesReady() bool {
 	return w != nil && w.updateShell != nil && w.updateShell.SourcesReady()
-}
-func sourcePreferenceSubtitle(states []updateflow.SourceState, ready bool, id updateflow.SourceID) string {
-	if !ready {
-		return "Checking availability…"
-	}
-	state, ok := sourceState(states, id)
-	if !ok {
-		return "Checking availability…"
-	}
-	if !state.Configured {
-		return "Disabled by your administrator"
-	}
-	if !state.Available {
-		return "Not available on this system"
-	}
-	return ""
-}
-
-func sourcePreferenceSensitive(states []updateflow.SourceState, ready bool, id updateflow.SourceID) bool {
-	if !ready {
-		return false
-	}
-	state, ok := sourceState(states, id)
-	return ok && state.Configured && state.Available
-}
-
-func sourceState(states []updateflow.SourceState, id updateflow.SourceID) (updateflow.SourceState, bool) {
-	for _, state := range states {
-		if state.ID == id {
-			return state, true
-		}
-	}
-	return updateflow.SourceState{}, false
 }

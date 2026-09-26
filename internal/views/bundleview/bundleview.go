@@ -33,11 +33,11 @@ type Presentation struct {
 	PlaceholderSubtitle string
 }
 
-// groupDescription states what the group does and the two consequences that
+// GroupDescription states what the group does and the two consequences that
 // matter once, at the group, rather than repeating them on every row: the
 // software comes from a third party, and a whole collection is a large
 // download.
-const groupDescription = "Install a set of apps and tools together in one step. " +
+const GroupDescription = "Install a set of apps and tools together in one step. " +
 	"Collections come from Homebrew, a third-party source, and can be a large download."
 
 // Present derives the collection group's complete loaded state. warning is
@@ -45,7 +45,7 @@ const groupDescription = "Install a set of apps and tools together in one step. 
 // a diagnostic for the log and never reaches the UI, because it names the
 // locations that were searched.
 func Present(count int, warning string) Presentation {
-	result := Presentation{Description: groupDescription}
+	result := Presentation{Description: GroupDescription}
 
 	switch {
 	case count == 0 && warning == "":

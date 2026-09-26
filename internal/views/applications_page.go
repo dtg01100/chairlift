@@ -1,7 +1,6 @@
 package views
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -17,7 +16,6 @@ import (
 	"github.com/projectbluefin/chairlift/internal/views/actionstate"
 	"github.com/projectbluefin/chairlift/internal/views/bundleview"
 	"github.com/projectbluefin/chairlift/internal/views/pageview"
-	"github.com/projectbluefin/chairlift/internal/views/trustmsg"
 
 	sgtk "github.com/frostyard/snowkit/gtk"
 
@@ -175,7 +173,10 @@ func (uh *UserHome) buildApplicationsPage() {
 }
 
 // loadBrewBundles discovers the configured app collections on a worker
-// goroutine and builds all collection rows on GTK's main thread.
+// goroutine, publishes them for the setup assistant, and builds all
+// collection rows on GTK's main thread. Each row's Install button connects
+// through ConnectBundleInstall, so it shares one callback and one
+// per-collection gate with the assistant's Apps step.
 func (uh *UserHome) loadBrewBundles(paths []string) {
 	bundles, discoveryErr := homebrew.AvailableBundles(paths)
 	warning := ""
@@ -186,6 +187,7 @@ func (uh *UserHome) loadBrewBundles(paths []string) {
 	presentation := bundleview.Present(len(bundles), warning)
 
 	sgtk.RunOnMainThread(func() {
+		uh.publishBundles(bundles)
 		if uh.brewBundlesGroup == nil {
 			return
 		}
@@ -200,74 +202,26 @@ func (uh *UserHome) loadBrewBundles(paths []string) {
 		}
 
 		for _, bundle := range bundles {
-			collection := bundleview.Describe(bundle.Name, bundle.Description, bundle.ItemCount)
-			row := adw.NewActionRow()
-			row.SetTitle(collection.Title)
-			row.SetSubtitle(collection.Subtitle)
-
-			installBtn := gtk.NewButtonWithLabel("Install")
-			installBtn.SetValign(gtk.AlignCenterValue)
-			installBtn.AddCssClass("suggested-action")
-
-			gate := &bundleview.InstallGate{}
-			bundle := bundle
-			clickedCb := func(btn gtk.Button) {
-				if !gate.TryStart() {
-					return
-				}
-				btn.SetSensitive(false)
-				btn.SetLabel("Installing…")
-
-				go func() {
-					if err := homebrew.BundleInstall(bundle.Path); err != nil {
-						// The error names the file and the failing entry,
-						// which is a log detail; the person gets the one
-						// thing they can act on.
-						log.Printf("Error installing app collection %q: %v", bundle.Name, err)
-						sgtk.RunOnMainThread(func() {
-							gate.Reset()
-							btn.SetLabel("Install")
-							btn.SetSensitive(true)
-							var trustErr *homebrew.UntrustedTapError
-							if errors.As(err, &trustErr) {
-								uh.toastAdder.ShowErrorToast(trustmsg.BundleMessage(collection.Title, trustErr.Tap))
-								return
-							}
-							uh.toastAdder.ShowErrorToast(fmt.Sprintf(
-								"Could not install %s. Part of it may have been installed before it stopped.",
-								collection.Title,
-							))
-						})
-						return
-					}
-
-					decision := actionmsg.BundleInstall(dryrun.Enabled(), collection.Title)
-					sgtk.RunOnMainThread(func() {
-						if decision.Complete {
-							gate.Complete()
-							btn.SetLabel("Installed")
-							btn.SetSensitive(false)
-							// A live install can add packages the current
-							// inventory snapshot predates, so refresh the
-							// installed list to match. Under dry-run
-							// decision.Complete is false — nothing was
-							// changed — so the inventory stays put.
-							go uh.loadHomebrewPackages()
-						} else {
-							gate.Reset()
-							btn.SetLabel("Install")
-							btn.SetSensitive(true)
-						}
-						uh.toastAdder.ShowToast(decision.Toast)
-					})
-				}()
-			}
-			installBtn.ConnectClicked(&clickedCb)
-
-			row.AddSuffix(&installBtn.Widget)
+			row, installBtn := newBundleRow(bundle)
+			uh.ConnectBundleInstall(bundle, installBtn)
 			uh.brewBundlesGroup.Add(&row.Widget)
 		}
 	})
+}
+
+// newBundleRow builds one collection row with its Install button, unwired:
+// the caller connects the button through ConnectBundleInstall.
+func newBundleRow(bundle homebrew.Bundle) (*adw.ActionRow, *gtk.Button) {
+	collection := bundleview.Describe(bundle.Name, bundle.Description, bundle.ItemCount)
+	row := adw.NewActionRow()
+	row.SetTitle(collection.Title)
+	row.SetSubtitle(collection.Subtitle)
+
+	installBtn := gtk.NewButtonWithLabel("Install")
+	installBtn.SetValign(gtk.AlignCenterValue)
+	installBtn.AddCssClass("suggested-action")
+	row.AddSuffix(&installBtn.Widget)
+	return row, installBtn
 }
 
 // loadHomebrewPackages loads installed Homebrew packages asynchronously

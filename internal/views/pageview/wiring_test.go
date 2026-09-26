@@ -46,7 +46,10 @@ func TestPageBuildersUsePurePresentations(t *testing.T) {
 				"pageview.HomebrewPackage(",
 				"pageview.FlatpakApplication",
 				"pageview.SearchResult(",
-				"trustmsg.BundleMessage(",
+				// Collection installs run through the one shared runner the
+				// setup assistant also uses (setup_host.go), never a
+				// page-private copy.
+				"uh.ConnectBundleInstall(",
 			},
 			retired: []string{
 				`fmt.Sprintf("%s — %s", bundle.Description, bundle.Path)`,
@@ -56,6 +59,15 @@ func TestPageBuildersUsePurePresentations(t *testing.T) {
 				`"Brew Bundle Dump"`,
 				"~/Brewfile",
 				`fmt.Sprintf("Error: %v", err)`,
+				"homebrew.BundleInstall(",
+			},
+		},
+		{
+			file: "setup_host.go",
+			required: []string{
+				"bundleview.Describe(",
+				"trustmsg.BundleMessage(",
+				"actionmsg.BundleInstall(",
 			},
 		},
 		{
@@ -153,8 +165,19 @@ func TestPageBuildersUsePurePresentations(t *testing.T) {
 				// follows; pageview owns which word describes the click.
 				"pageview.StepForwardAction(",
 				"pageview.SetupCompletedMessage",
-				// A skip must not overwrite a recorded completion.
-				"firstrun.SkipPreserving(",
+				// A skip must not overwrite a recorded completion; the
+				// read-decide-write lives in firstrun where it is tested.
+				"firstrun.RecordSkip(",
+				// A dismissal without a decision records a skip.
+				"if !a.decided {",
+				// Each choice row's copy comes from pageview, keyed on the
+				// model's choice ID, and every choice acts through the host.
+				"pageview.SetupChoiceRow(",
+				"a.host.SetLiveryEnabled(",
+				"a.host.ConnectBundleInstall(",
+				"pageview.UpdateSourcePreferenceByKey(",
+				"pageview.UpdateSourcePreferenceSubtitle(",
+				"pageview.UpdateSourcePreferenceSensitive(",
 			},
 			retired: []string{
 				// Asking HasNext after Next skipped the final step: the move
@@ -168,6 +191,12 @@ func TestPageBuildersUsePurePresentations(t *testing.T) {
 				// A forward button hard-labeled Finish misdescribes every
 				// intermediate step it advances through.
 				`gtk.NewButtonWithLabel("Finish")`,
+				// The assistant never applies a mark, installs a collection
+				// or writes a preference itself; the pages do.
+				"livery.Apply(",
+				"livery.SetBool(",
+				"homebrew.BundleInstall(",
+				"exec.Command",
 			},
 		},
 		{

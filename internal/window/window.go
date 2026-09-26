@@ -193,6 +193,9 @@ func (w *Window) buildUI() {
 		w,
 	)
 	w.updateShell.SetOnUpdateFinished(w.views.OnUpdateFinished)
+	// The setup assistant's Update Preferences step reads source
+	// availability and binds its switches through these.
+	w.views.AttachUpdateSources(w.updateShell, store)
 	// Create the navigation split view
 	w.splitView = adw.NewNavigationSplitView()
 
@@ -706,9 +709,13 @@ func (w *Window) SetUpdateBadge(count int) {
 }
 
 // PresentFirstRun opens the first-run onboarding assistant dialog.
+//
+// The assistant is built once, over the views as its SetupHost: every
+// control it offers acts through the page that owns the setting, so the
+// two surfaces share one admission and one state.
 func (w *Window) PresentFirstRun() {
 	if w.firstRun == nil {
-		w.firstRun = views.NewFirstRunAssistant(w.effectiveEnabled, w)
+		w.firstRun = views.NewFirstRunAssistant(w.effectiveEnabled, w, w.views)
 	}
 	w.firstRun.Present(&w.Widget)
 }

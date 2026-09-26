@@ -6,6 +6,7 @@ import (
 
 	"github.com/projectbluefin/chairlift/internal/branding"
 	"github.com/projectbluefin/chairlift/internal/firstrun"
+	"github.com/projectbluefin/chairlift/internal/updateflow"
 )
 
 func TestWelcomeViewModelConstructsProperDefaults(t *testing.T) {
@@ -143,5 +144,130 @@ func TestWelcomeCopyIsReExportedFromFirstrun(t *testing.T) {
 	}
 	if WelcomeSubtitle != firstrun.StepWelcome.Description {
 		t.Errorf("WelcomeSubtitle = %q, want %q", WelcomeSubtitle, firstrun.StepWelcome.Description)
+	}
+}
+
+// TestEveryModelChoiceHasARowOrIsTheCollectionList holds the dialog to the
+// model: every choice the setup model can offer either resolves to one
+// switch row's copy here, or is the Apps choice, which the dialog renders
+// as one row per discovered collection. A choice added to the model without
+// a row here would render as an empty title.
+func TestEveryModelChoiceHasARowOrIsTheCollectionList(t *testing.T) {
+	model := firstrun.NewAssistantModel(func(string, string) bool { return true })
+	seen := 0
+	for _, step := range model.Steps() {
+		for _, choice := range step.Choices {
+			seen++
+			row, ok := SetupChoiceRow(choice.ID)
+			if choice.ID == firstrun.ChoiceIDBundles {
+				if ok {
+					t.Errorf("SetupChoiceRow(%q) = %+v, want no single row for the collection list", choice.ID, row)
+				}
+				continue
+			}
+			if !ok || row.Title == "" {
+				t.Errorf("SetupChoiceRow(%q) = (%+v, %v), want a titled row", choice.ID, row, ok)
+			}
+		}
+	}
+	if seen < 8 {
+		t.Fatalf("model offered %d choices with an open floor, want the full inventory", seen)
+	}
+	if _, ok := SetupChoiceRow("no-such-choice"); ok {
+		t.Error("SetupChoiceRow(unknown) reported a row")
+	}
+}
+
+// TestAppearanceChoicesReuseTheLiveryRows keeps one voice per setting: the
+// assistant's Appearance rows are the Livery page's own switch rows. The
+// app-grid row alone carries one more sentence, because the assistant offers
+// its switch without the brand chooser the Livery page has.
+func TestAppearanceChoicesReuseTheLiveryRows(t *testing.T) {
+	for choiceID, want := range map[string]Row{
+		firstrun.ChoiceIDFoundation: LiveryPanelRow(),
+		firstrun.ChoiceIDDock:       LiveryDockRow(),
+	} {
+		if got, _ := SetupChoiceRow(choiceID); got != want {
+			t.Errorf("SetupChoiceRow(%q) = %+v, want the Livery row %+v", choiceID, got, want)
+		}
+	}
+	got, _ := SetupChoiceRow(firstrun.ChoiceIDAppGrid)
+	page := LiveryAppGridRow()
+	if got.Title != page.Title || !strings.HasPrefix(got.Subtitle, page.Subtitle) || !strings.HasSuffix(got.Subtitle, SetupAppGridBrandHint) {
+		t.Errorf("SetupChoiceRow(app-grid) = %+v, want the Livery row %+v followed by %q", got, page, SetupAppGridBrandHint)
+	}
+}
+
+// TestUpdateChoicesAreSpelledAsTheSourceTableKeys binds the model's Update
+// Preferences choices to the one source table both the Preferences dialog
+// and the assistant render: the dialog binds a switch to a GSettings key by
+// the choice's ID alone, so a mismatch would leave a switch unbound.
+func TestUpdateChoicesAreSpelledAsTheSourceTableKeys(t *testing.T) {
+	model := firstrun.NewAssistantModel(func(string, string) bool { return true })
+	var keys []string
+	for _, step := range model.Steps() {
+		if step.ID != firstrun.StepIDUpdates {
+			continue
+		}
+		for _, choice := range step.Choices {
+			preference, ok := UpdateSourcePreferenceByKey(choice.ID)
+			if !ok {
+				t.Errorf("update choice %q is not a key in UpdateSourcePreferences", choice.ID)
+				continue
+			}
+			if preference.Title != choice.Title {
+				t.Errorf("choice %q titled %q, the source table says %q", choice.ID, choice.Title, preference.Title)
+			}
+			keys = append(keys, choice.ID)
+		}
+	}
+	if len(keys) != len(UpdateSourcePreferences) {
+		t.Fatalf("the Update Preferences step offers %d sources, the table has %d", len(keys), len(UpdateSourcePreferences))
+	}
+}
+
+// TestUpdateSourcePreferenceRowsExplainWhyASwitchIsLocked is the availability
+// rule the Preferences dialog and the assistant share: a switch is operable
+// only once the shell has checked, and only for a source the administrator
+// enables and the host can back — and the subtitle says which.
+func TestUpdateSourcePreferenceRowsExplainWhyASwitchIsLocked(t *testing.T) {
+	id := updateflow.Applications
+	cases := []struct {
+		name          string
+		states        []updateflow.SourceState
+		ready         bool
+		wantSubtitle  string
+		wantSensitive bool
+	}{
+		{"before the first check", nil, false, "Checking availability…", false},
+		{"a source the shell has not reported", []updateflow.SourceState{{ID: updateflow.OperatingSystem, Configured: true, Available: true}}, true, "Checking availability…", false},
+		{"disabled by the administrator", []updateflow.SourceState{{ID: id, Configured: false, Available: true}}, true, "Disabled by your administrator", false},
+		{"not backed by this host", []updateflow.SourceState{{ID: id, Configured: true, Available: false}}, true, "Not available on this system", false},
+		{"operable", []updateflow.SourceState{{ID: id, Configured: true, Available: true}}, true, "", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := UpdateSourcePreferenceSubtitle(tc.states, tc.ready, id); got != tc.wantSubtitle {
+				t.Errorf("subtitle = %q, want %q", got, tc.wantSubtitle)
+			}
+			if got := UpdateSourcePreferenceSensitive(tc.states, tc.ready, id); got != tc.wantSensitive {
+				t.Errorf("sensitive = %v, want %v", got, tc.wantSensitive)
+			}
+		})
+	}
+}
+
+// TestConfigureEverythingDescriptionNamesTheStepsItLeadsTo: the tooltip on
+// the primary action promised "developer tools" while the third step is
+// Update Preferences; the copy must name what the steps actually are.
+func TestConfigureEverythingDescriptionNamesTheStepsItLeadsTo(t *testing.T) {
+	model := firstrun.NewAssistantModel(func(string, string) bool { return true })
+	for _, step := range model.Steps() {
+		if step.ID == firstrun.StepIDWelcome {
+			continue
+		}
+		if !strings.Contains(strings.ToLower(ConfigureEverythingDescription), strings.ToLower(step.Title)) {
+			t.Errorf("ConfigureEverythingDescription %q does not name the %q step", ConfigureEverythingDescription, step.Title)
+		}
 	}
 }

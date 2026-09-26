@@ -237,10 +237,13 @@ func (uh *UserHome) refreshLiveryState() {
 			// treated as a user edit against zero-valued state.
 			log.Printf("livery: loading settings: %v", err)
 			uh.liveryLoaded = true
+			uh.liverySchemaMissing = true
 			uh.toastAdder.ShowErrorToast(pageview.LiverySchemaMissingMessage)
+			uh.notifyLiveryLoaded()
 			return
 		}
 		uh.applyLiveryState(state, panelAvailable, appGridAvailable)
+		uh.notifyLiveryLoaded()
 	})
 }
 
@@ -281,6 +284,8 @@ func (uh *UserHome) applyLiveryState(state livery.State, panelAvailable, appGrid
 		uh.liveryLoaded = true
 	}()
 	uh.liveryState = state
+	uh.liveryAppGridAvailable = appGridAvailable
+	uh.liveryPanelAvailable = panelAvailable
 
 	// Seed the selections with the ids the combos will actually hold, not
 	// the raw stored values. The combo carries an index, and the handler maps

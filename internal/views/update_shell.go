@@ -57,6 +57,18 @@ type UpdateShell struct {
 	// repeat call replaces it instead of adding a second copy.
 	secondary        *gtk.Widget
 	onUpdateFinished func(updateflow.Snapshot)
+	// onSourcesRendered runs after every Render, on the main thread. The
+	// setup assistant's Update Preferences step refreshes its rows from it,
+	// so a source whose availability the first check settles after the step
+	// opened does not stay locked as "Checking availability…".
+	onSourcesRendered func()
+}
+
+// SetOnSourcesRendered registers the one callback run after each Render.
+func (s *UpdateShell) SetOnSourcesRendered(fn func()) {
+	if s != nil {
+		s.onSourcesRendered = fn
+	}
 }
 
 // SetOnUpdateFinished registers a callback invoked on the GTK main thread
@@ -360,6 +372,9 @@ func (s *UpdateShell) Render(snapshot updateflow.Snapshot) {
 		s.banner.SetRevealed(presentation.Banner != "")
 	}
 	s.renderSources(snapshot.Sources)
+	if s.onSourcesRendered != nil {
+		s.onSourcesRendered()
+	}
 	if s.toasts != nil {
 		s.toasts.SetUpdateBadge(snapshot.TotalUpdates)
 	}

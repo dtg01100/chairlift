@@ -21,13 +21,10 @@ func TestBrewBundleGroupConfigControlsRuntimeWiring(t *testing.T) {
 		t.Fatal("explicitly disabled brew_bundles_group remains enabled")
 	}
 
-	sourcePath := filepath.Join(repoRoot(), "internal", "views", "applications_page.go")
-	source, err := os.ReadFile(sourcePath)
-	if err != nil {
-		t.Fatalf("read %s: %v", sourcePath, err)
-	}
-	text := string(source)
-	for _, required := range []string{
+	// The page discovers and lists collections; the install itself lives in
+	// the shared runner every surface offering a collection goes through
+	// (internal/views/setup_host.go), so each file is held to its half.
+	requireSource(t, filepath.Join(repoRoot(), "internal", "views", "applications_page.go"), []string{
 		`if uh.groupEnabled("applications_page", "brew_bundles_group") {`,
 		`uh.config.GetGroupConfig("applications_page", "brew_bundles_group")`,
 		`groupCfg.BundlesPaths`,
@@ -35,12 +32,25 @@ func TestBrewBundleGroupConfigControlsRuntimeWiring(t *testing.T) {
 		`homebrew.AvailableBundles(paths)`,
 		`bundleview.Present(len(bundles), warning)`,
 		`bundleview.Describe(bundle.Name, bundle.Description, bundle.ItemCount)`,
-		`if !gate.TryStart()`,
+		`uh.ConnectBundleInstall(bundle, installBtn)`,
+	})
+	requireSource(t, filepath.Join(repoRoot(), "internal", "views", "setup_host.go"), []string{
+		`if !shared.gate.TryStart()`,
 		`homebrew.BundleInstall(bundle.Path)`,
 		`actionmsg.BundleInstall(dryrun.Enabled(), collection.Title)`,
-	} {
-		if !strings.Contains(text, required) {
-			t.Errorf("Applications-page bundle wiring does not contain %q", required)
+	})
+}
+
+func requireSource(t *testing.T, sourcePath string, required []string) {
+	t.Helper()
+	source, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", sourcePath, err)
+	}
+	text := string(source)
+	for _, want := range required {
+		if !strings.Contains(text, want) {
+			t.Errorf("%s does not contain %q", filepath.Base(sourcePath), want)
 		}
 	}
 }

@@ -248,17 +248,244 @@ func TestMemoryStoreGetAndSet(t *testing.T) {
 	}
 }
 
-func TestGSettingsStoreRespectsDryRun(t *testing.T) {
+// TestGSettingsStoreDryRunSpawnsNothing holds the dry-run contract where it
+// matters: not that SetDisposition returns nil, but that no gsettings process
+// is started. An earlier version of this test asserted only the nil error,
+// which a regression that wrote for real would also have satisfied.
+func TestGSettingsStoreDryRunSpawnsNothing(t *testing.T) {
 	dryrun.Set(true)
 	defer dryrun.Set(false)
 
-	ctx := context.Background()
+	original := runCommand
+	t.Cleanup(func() { runCommand = original })
+	runCommand = func(_ context.Context, name string, args ...string) (string, error) {
+		t.Fatalf("dry-run SetDisposition spawned %s %v", name, args)
+		return "", nil
+	}
+
+	store := NewGSettingsStore()
+	for _, disp := range []Disposition{DispositionSkipped, DispositionCompleted} {
+		if err := store.SetDisposition(context.Background(), disp); err != nil {
+			t.Fatalf("SetDisposition(%s) in dry-run mode failed: %v", disp, err)
+		}
+	}
+}
+
+// TestGSettingsStoreWritesTheKeysEachDispositionOwns pins the live write
+// path: a skip writes the disposition alone, a completion also records the
+// version that finished setup, and both values are quoted as GVariant
+// strings so gsettings parses them.
+func TestGSettingsStoreWritesTheKeysEachDispositionOwns(t *testing.T) {
+	original := runCommand
+	t.Cleanup(func() { runCommand = original })
+
+	var calls [][]string
+	runCommand = func(_ context.Context, name string, args ...string) (string, error) {
+		if name != "gsettings" {
+			t.Errorf("spawned %q, want gsettings", name)
+		}
+		calls = append(calls, args)
+		return "", nil
+	}
 	store := NewGSettingsStore()
 
-	// In dry-run mode, SetDisposition must succeed without calling external commands
-	if err := store.SetDisposition(ctx, DispositionCompleted); err != nil {
-		t.Fatalf("SetDisposition in dry-run mode failed: %v", err)
+	if err := store.SetDisposition(context.Background(), DispositionSkipped); err != nil {
+		t.Fatalf("SetDisposition(skipped): %v", err)
 	}
+	want := [][]string{{"set", SchemaID, KeyDisposition, `"skipped"`}}
+	if !equalCalls(calls, want) {
+		t.Fatalf("skipped wrote %v, want %v", calls, want)
+	}
+
+	calls = nil
+	if err := store.SetDisposition(context.Background(), DispositionCompleted); err != nil {
+		t.Fatalf("SetDisposition(completed): %v", err)
+	}
+	if len(calls) != 2 || !equalCalls(calls[:1], [][]string{{"set", SchemaID, KeyDisposition, `"completed"`}}) {
+		t.Fatalf("completed wrote %v, want the disposition then the version", calls)
+	}
+	if got := calls[1]; len(got) != 4 || got[0] != "set" || got[1] != SchemaID || got[2] != KeyCompletedVersion || got[3] == `""` {
+		t.Fatalf("completed-version write = %v, want set %s %s <quoted version>", got, SchemaID, KeyCompletedVersion)
+	}
+}
+
+func equalCalls(got, want [][]string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if strings.Join(got[i], "\x00") != strings.Join(want[i], "\x00") {
+			return false
+		}
+	}
+	return true
+}
+
+// TestGSettingsStoreWriteFailuresAreClassified keeps a missing schema
+// distinguishable from any other write failure: the caller logs the first as
+// "reinstall so the schema is compiled" and the second as a bare error.
+func TestGSettingsStoreWriteFailuresAreClassified(t *testing.T) {
+	original := runCommand
+	t.Cleanup(func() { runCommand = original })
+
+	runCommand = func(context.Context, string, ...string) (string, error) {
+		return "No such schema “" + SchemaID + "”", errors.New("exit status 1")
+	}
+	if err := NewGSettingsStore().SetDisposition(context.Background(), DispositionSkipped); !errors.Is(err, ErrSchemaMissing) {
+		t.Fatalf("missing schema write error = %v, want ErrSchemaMissing", err)
+	}
+
+	boom := errors.New("dconf is not running")
+	runCommand = func(context.Context, string, ...string) (string, error) {
+		return "", boom
+	}
+	err := NewGSettingsStore().SetDisposition(context.Background(), DispositionSkipped)
+	if !errors.Is(err, boom) || errors.Is(err, ErrSchemaMissing) {
+		t.Fatalf("other write error = %v, want it to wrap %v and not ErrSchemaMissing", err, boom)
+	}
+}
+
+// TestGetDispositionParsesTheSchemaListing covers readAll's one input: the
+// `gsettings list-recursively` listing, which may carry other schemas' lines,
+// single- or double-quoted values, and values a newer build wrote.
+func TestGetDispositionParsesTheSchemaListing(t *testing.T) {
+	original := runCommand
+	t.Cleanup(func() { runCommand = original })
+
+	cases := []struct {
+		name    string
+		listing string
+		want    Disposition
+		wantErr error
+	}{
+		{
+			name:    "single-quoted skip",
+			listing: SchemaID + " " + KeyCompletedVersion + " ''\n" + SchemaID + " " + KeyDisposition + " 'skipped'\n",
+			want:    DispositionSkipped,
+		},
+		{
+			name:    "double-quoted completion",
+			listing: SchemaID + " " + KeyDisposition + " \"completed\"\n" + SchemaID + " " + KeyCompletedVersion + " \"v26.09.0-alpha.2\"\n",
+			want:    DispositionCompleted,
+		},
+		{
+			name:    "another schema's lines are ignored",
+			listing: "io.projectbluefin.chairlift.livery disposition 'completed'\n" + SchemaID + " " + KeyDisposition + " 'not-addressed'\n",
+			want:    DispositionNotAddressed,
+		},
+		{
+			name:    "a version without a disposition is an earlier build's completion",
+			listing: SchemaID + " " + KeyCompletedVersion + " 'v0.12.2'\n" + SchemaID + " " + KeyDisposition + " ''\n",
+			want:    DispositionCompleted,
+		},
+		{
+			name:    "a value this build does not know is not addressed",
+			listing: SchemaID + " " + KeyDisposition + " 'postponed'\n" + SchemaID + " " + KeyCompletedVersion + " ''\n",
+			want:    DispositionNotAddressed,
+		},
+		{
+			name:    "an empty listing means the schema is not installed",
+			listing: "",
+			want:    DispositionNotAddressed,
+			wantErr: ErrSchemaMissing,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			runCommand = func(_ context.Context, _ string, args ...string) (string, error) {
+				if len(args) != 2 || args[0] != "list-recursively" || args[1] != SchemaID {
+					t.Errorf("unexpected gsettings invocation %v", args)
+				}
+				return tc.listing, nil
+			}
+			got, err := NewGSettingsStore().GetDisposition(context.Background())
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("GetDisposition error = %v, want %v", err, tc.wantErr)
+			}
+			if got != tc.want {
+				t.Fatalf("GetDisposition = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestShouldPresentWithoutAStorePresents covers the nil-store branch: with
+// nowhere to read a disposition from, the assistant presents rather than
+// silently never appearing.
+func TestShouldPresentWithoutAStorePresents(t *testing.T) {
+	if !ShouldPresent(context.Background(), false, false, nil) {
+		t.Fatal("ShouldPresent(nil store) = false, want true")
+	}
+}
+
+type failingStore struct {
+	readErr  error
+	writeErr error
+	written  []Disposition
+}
+
+func (s *failingStore) GetDisposition(context.Context) (Disposition, error) {
+	return DispositionNotAddressed, s.readErr
+}
+
+func (s *failingStore) SetDisposition(_ context.Context, d Disposition) error {
+	if s.writeErr != nil {
+		return s.writeErr
+	}
+	s.written = append(s.written, d)
+	return nil
+}
+
+// TestRecordSkipPreservesACompletionAndWritesOtherwise is the read-decide-
+// write behind Get Moving and a plain dismissal: a fresh account records a
+// skip, a skipped account is left alone, and a completed account is never
+// demoted. A read failure still records the skip, because the alternative
+// is presenting the assistant on every launch.
+func TestRecordSkipPreservesACompletionAndWritesOtherwise(t *testing.T) {
+	cases := []struct {
+		name      string
+		initial   Disposition
+		want      Disposition
+		wantWrote bool
+	}{
+		{"not addressed records a skip", DispositionNotAddressed, DispositionSkipped, true},
+		{"already skipped writes nothing", DispositionSkipped, DispositionSkipped, false},
+		{"completed is preserved", DispositionCompleted, DispositionCompleted, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := NewMemoryStore(tc.initial)
+			got, wrote, err := RecordSkip(context.Background(), store)
+			if err != nil {
+				t.Fatalf("RecordSkip: %v", err)
+			}
+			if got != tc.want || wrote != tc.wantWrote {
+				t.Fatalf("RecordSkip = (%v, %v), want (%v, %v)", got, wrote, tc.want, tc.wantWrote)
+			}
+			if after, _ := store.GetDisposition(context.Background()); after != tc.want {
+				t.Fatalf("store holds %v after RecordSkip, want %v", after, tc.want)
+			}
+		})
+	}
+
+	t.Run("a read failure still records the skip", func(t *testing.T) {
+		store := &failingStore{readErr: errors.New("dconf is not running")}
+		got, wrote, err := RecordSkip(context.Background(), store)
+		if err != nil || !wrote || got != DispositionSkipped {
+			t.Fatalf("RecordSkip = (%v, %v, %v), want (skipped, true, nil)", got, wrote, err)
+		}
+		if len(store.written) != 1 || store.written[0] != DispositionSkipped {
+			t.Fatalf("written = %v, want [skipped]", store.written)
+		}
+	})
+
+	t.Run("a write failure is returned", func(t *testing.T) {
+		boom := errors.New("no such schema")
+		store := &failingStore{writeErr: boom}
+		if _, wrote, err := RecordSkip(context.Background(), store); !errors.Is(err, boom) || wrote {
+			t.Fatalf("RecordSkip = (wrote=%v, err=%v), want (false, %v)", wrote, err, boom)
+		}
+	})
 }
 
 func TestEmbeddedAssetsAreNonEmpty(t *testing.T) {

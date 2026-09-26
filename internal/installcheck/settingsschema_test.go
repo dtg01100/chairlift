@@ -267,29 +267,36 @@ func getBooleanKeyArgument(expr ast.Expr) string {
 // gschema, keyed by key name.
 func readUpdatesSchema(t *testing.T) (id string, keys map[string]gschemaKey) {
 	t.Helper()
+	return readGSchema(t, updatesSchemaFile)
+}
 
-	raw, err := os.ReadFile(filepath.Join(RepoRoot(), updatesSchemaFile))
+// readGSchema returns the single schema a shipped gschema file declares,
+// keyed by key name.
+func readGSchema(t *testing.T, schemaFile string) (id string, keys map[string]gschemaKey) {
+	t.Helper()
+
+	raw, err := os.ReadFile(filepath.Join(RepoRoot(), schemaFile))
 	if err != nil {
-		t.Fatalf("reading %s: %v", updatesSchemaFile, err)
+		t.Fatalf("reading %s: %v", schemaFile, err)
 	}
 
 	var list gschemaList
 	if err := xml.Unmarshal(raw, &list); err != nil {
-		t.Fatalf("parsing %s: %v", updatesSchemaFile, err)
+		t.Fatalf("parsing %s: %v", schemaFile, err)
 	}
 	if len(list.Schemas) != 1 {
-		t.Fatalf("%s declares %d schemas, want exactly 1", updatesSchemaFile, len(list.Schemas))
+		t.Fatalf("%s declares %d schemas, want exactly 1", schemaFile, len(list.Schemas))
 	}
 
 	schema := list.Schemas[0]
 	if len(schema.Keys) == 0 {
-		t.Fatalf("%s declares no keys: this gate would be vacuous", updatesSchemaFile)
+		t.Fatalf("%s declares no keys: this gate would be vacuous", schemaFile)
 	}
 
 	keys = make(map[string]gschemaKey, len(schema.Keys))
 	for _, key := range schema.Keys {
 		if _, duplicate := keys[key.Name]; duplicate {
-			t.Errorf("%s declares key %q twice", updatesSchemaFile, key.Name)
+			t.Errorf("%s declares key %q twice", schemaFile, key.Name)
 		}
 		keys[key.Name] = key
 	}

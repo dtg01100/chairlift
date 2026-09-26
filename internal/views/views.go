@@ -9,7 +9,9 @@ import (
 	"github.com/projectbluefin/chairlift/internal/bootc"
 	"github.com/projectbluefin/chairlift/internal/capability"
 	"github.com/projectbluefin/chairlift/internal/config"
+	"github.com/projectbluefin/chairlift/internal/homebrew"
 	"github.com/projectbluefin/chairlift/internal/livery"
+	"github.com/projectbluefin/chairlift/internal/settings"
 	"github.com/projectbluefin/chairlift/internal/troubleshoot"
 	"github.com/projectbluefin/chairlift/internal/updateflow"
 	"github.com/projectbluefin/chairlift/internal/views/actionstate"
@@ -78,6 +80,23 @@ type UserHome struct {
 	brewTrustGroup         *adw.PreferencesGroup
 	brewTrustRows          map[string]*adw.ActionRow
 	outdatedRows           rowset.Tracker[*adw.ActionRow]
+	// App collections are discovered once, by the Apps page, and shared with
+	// the setup assistant: both surfaces list brewBundles and install through
+	// bundleInstalls' one gate per collection (see setup_host.go), so neither
+	// can start a run the other is already making and every Install button
+	// for a collection shows the same phase. brewBundlesWaiters holds the
+	// assistant's step until discovery finishes.
+	brewBundles        []homebrew.Bundle
+	brewBundlesLoaded  bool
+	brewBundlesWaiters []func()
+	bundleInstalls     map[string]*bundleInstall
+	bundleButtons      buttonRoute
+
+	// The update shell and the user preference store, attached by the window
+	// once it has built them; the setup assistant's Update Preferences step
+	// reads source availability and binds switches through them.
+	updateShell *UpdateShell
+	updatePrefs *settings.Store
 
 	// One shared callback per rebuilt list; see buttonRoute. Each is cleared
 	// alongside its row tracker, so reloads allocate no new trampolines.
@@ -119,6 +138,19 @@ type UserHome struct {
 	liveryState       livery.State
 	liverySuppress    bool
 	liveryLoaded      bool
+	// What the first load found this desktop can apply: the app-grid mark
+	// needs its icon-theme directory, the panel mark needs the Custom
+	// Command Menu extension. The setup assistant reads these to leave an
+	// inapplicable choice insensitive rather than offering a switch that
+	// would apply nothing.
+	liveryAppGridAvailable bool
+	liveryPanelAvailable   bool
+	// liverySchemaMissing records the one load failure the page cannot
+	// recover from in-session; every choice is then reported unavailable.
+	liverySchemaMissing bool
+	// liveryLoadWaiters run on the main thread after each load applies; the
+	// setup assistant's Appearance step refreshes its rows from them.
+	liveryLoadWaiters []func()
 	// One gate per section serializes that section's toggle work. Every
 	// section's Apply and Clear touch the same mark file, so an off-then-on
 	// flip without a gate can land Clear after Apply and leave the switch
