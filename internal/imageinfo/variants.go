@@ -105,6 +105,8 @@ type driverStreams struct {
 // channels.yml; see LoadTable.
 var imageDriverMap = map[string][]driverStreams{
 	"ghcr.io/ublue-os/bluefin": {
+		// No "gts": ChairLift does not offer that stream, though the tag
+		// still resolves (200 on 2026-09-26); see imageChannelMap.
 		// No "beta" anywhere: ghcr.io/ublue-os/bluefin:beta answered 404 on
 		// 2026-09-21. bluefin-nvidia:beta is still 200, but with no base
 		// image on that stream a host that took the switch could not come

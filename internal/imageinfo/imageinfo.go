@@ -224,6 +224,9 @@ var imageChannelMap = map[string]imageChannels{
 	// the LTS streams have testing counterparts; latest/stable/stable-daily
 	// do not, so a Bluefin Stable host correctly offers no channel switch.
 	// "beta" is gone: it was 200 on 2026-08-17 and 404 on 2026-09-21.
+	// "gts" is not offered by product decision, not because it vanished:
+	// ghcr.io/ublue-os/bluefin:gts still answered 200 on 2026-09-26. Do not
+	// add it back to match the registry.
 	"ghcr.io/ublue-os/bluefin": {
 		stableTags:  []string{"latest", "stable", "stable-daily", "lts", "lts-hwe"},
 		testingTags: []string{"lts-testing", "lts-hwe-testing"},
