@@ -725,19 +725,23 @@ An agent must not break these:
   refuse to record one of ChairLift's own names as the user's previous icon
   without persisting a flag to say so.
 - **Connect GTK signals once, at page-build time — never inside a refresh
-  path.** puregotk routes every `Connect*` through `purego.NewCallbackFnPtr`,
-  which caches by the *address* of the func variable and draws from a fixed
-  table: `maxCB = 2000`, with a hard `panic` when it fills and nothing ever
-  releasing a slot. A closure created per row inside a function that reruns
-  therefore burns slots until the application dies. The Livery page's project
-  search hit this directly — six result rows rebuilt on every keystroke — and
-  is why it connects one `GtkListBox::row-activated` for the page's lifetime
-  and maps the activated row's index into the result set it last drew, instead
-  of giving each row its own handler. Note this rule is not yet met
-  everywhere: `applications_page.go` and `updates_page.go` connect per-row
-  callbacks inside refresh paths that rerun on every search, which is the same
-  latent panic under heavy use. Do not add new instances, and prefer fixing
-  one when you are already editing that code.
+  path.** puregotk turns every `Connect*` callback into a purego trampoline
+  cached by the *address* of the func variable and drawn from a fixed table:
+  `maxCB = 2000`, with a hard `panic` when it fills. Nothing releases a slot
+  when its widget is destroyed; `glib.UnrefCallback` exists but is only safe
+  after the handler is disconnected, which no wrapper does. A closure created
+  per row inside a function that reruns therefore burns slots until the
+  application dies. Two patterns avoid it. The Livery page's project search
+  connects one `GtkListBox::row-activated` for the page's lifetime and maps
+  the activated row's index into the result set it last drew. Button rows in
+  `applications_page.go` and `updates_page.go` use `buttonRoute`
+  (`internal/views/widgets.go`): one `::clicked` func variable per list, held
+  in a `UserHome` field, with `internal/views/signalroute` mapping each
+  emitting button's address to its action; the list's `clear()` runs beside
+  its row tracker's `Clear`, and a row removed on its own calls `forget`.
+  Their confirmation dialogs share one `dialogRoute`, whose actions run once.
+  A new per-row or per-dialog callback in a refresh path must use one of
+  these, not a fresh closure.
 - **Switch rows use `gtk.Switch` with `ConnectStateSet`, not a generic
   `notify`.** `AdwSwitchRow` exposes no change-specific signal in these
   bindings, and the generic `notify` fires for every property — sensitivity,

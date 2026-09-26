@@ -79,6 +79,19 @@ type UserHome struct {
 	brewTrustRows          map[string]*adw.ActionRow
 	outdatedRows           rowset.Tracker[*adw.ActionRow]
 
+	// One shared callback per rebuilt list; see buttonRoute. Each is cleared
+	// alongside its row tracker, so reloads allocate no new trampolines.
+	formulaButtons       buttonRoute
+	caskButtons          buttonRoute
+	flatpakButtons       buttonRoute
+	searchResultButtons  buttonRoute
+	trustButtons         buttonRoute
+	outdatedButtons      buttonRoute
+	flatpakUpdateButtons buttonRoute
+	// confirmations routes every confirmation dialog the Apps and Updates
+	// pages present, one response each.
+	confirmations dialogRoute
+
 	// Livery references. liveryState is the last state the page loaded and
 	// is what every handler compares against, so a programmatic widget
 	// update during restore is recognized as "no change" instead of being

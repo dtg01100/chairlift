@@ -295,6 +295,7 @@ func (uh *UserHome) loadHomebrewPackages() {
 				uh.formulaeRows.Clear(func(row *adw.ActionRow) {
 					uh.formulaeExpander.Remove(&row.Widget)
 				})
+				uh.formulaButtons.clear()
 				uh.formulaeExpander.SetSubtitle(fmt.Sprintf("%d installed", len(formulae)))
 				uh.formulaeExpander.SetEnableExpansion(len(formulae) > 0)
 				for _, pkg := range formulae {
@@ -321,21 +322,18 @@ func (uh *UserHome) loadHomebrewPackages() {
 
 					gate := &actionstate.Gate{}
 					controls := []*gtk.Button{pinBtn, uninstallBtn}
-					pinClickedCb := func(_ gtk.Button) {
+					uh.formulaButtons.connect(pinBtn, func(gtk.Button) {
 						if !gate.TryStart() {
 							return
 						}
 						uh.confirmHomebrewPin(pkg.Name, !pkg.Pinned, pinBtn, controls, gate)
-					}
-					pinBtn.ConnectClicked(&pinClickedCb)
-
-					uninstallClickedCb := func(_ gtk.Button) {
+					})
+					uh.formulaButtons.connect(uninstallBtn, func(gtk.Button) {
 						if !gate.TryStart() {
 							return
 						}
 						uh.confirmHomebrewUninstall(pkg.Name, homebrew.Formula, uninstallBtn, controls, gate)
-					}
-					uninstallBtn.ConnectClicked(&uninstallClickedCb)
+					})
 
 					row.AddSuffix(&pinBtn.Widget)
 					row.AddSuffix(&uninstallBtn.Widget)
@@ -365,6 +363,7 @@ func (uh *UserHome) loadHomebrewPackages() {
 				uh.caskRows.Clear(func(row *adw.ActionRow) {
 					uh.casksExpander.Remove(&row.Widget)
 				})
+				uh.caskButtons.clear()
 				uh.casksExpander.SetSubtitle(fmt.Sprintf("%d installed", len(casks)))
 				uh.casksExpander.SetEnableExpansion(len(casks) > 0)
 				for _, pkg := range casks {
@@ -381,13 +380,12 @@ func (uh *UserHome) loadHomebrewPackages() {
 
 					gate := &actionstate.Gate{}
 					controls := []*gtk.Button{uninstallBtn}
-					uninstallClickedCb := func(_ gtk.Button) {
+					uh.caskButtons.connect(uninstallBtn, func(gtk.Button) {
 						if !gate.TryStart() {
 							return
 						}
 						uh.confirmHomebrewUninstall(pkg.Name, homebrew.Cask, uninstallBtn, controls, gate)
-					}
-					uninstallBtn.ConnectClicked(&uninstallClickedCb)
+					})
 
 					row.AddSuffix(&uninstallBtn.Widget)
 					uh.casksExpander.AddRow(&row.Widget)
@@ -417,7 +415,7 @@ func (uh *UserHome) confirmHomebrewPin(
 	dialog.AddResponse("confirm", action)
 	dialog.SetResponseAppearance("confirm", adw.ResponseSuggestedValue)
 
-	responseCb := func(_ adw.AlertDialog, response string) {
+	uh.confirmations.connect(dialog, func(response string) {
 		if response != "confirm" {
 			gate.Reset()
 			return
@@ -425,8 +423,7 @@ func (uh *UserHome) confirmHomebrewPin(
 		setHomebrewControlsSensitive(controls, false)
 		primary.SetLabel(action + "ning…")
 		go uh.runHomebrewPin(name, pin, primary, controls, gate)
-	}
-	dialog.ConnectResponse(&responseCb)
+	})
 	dialog.Present(&uh.applicationsPrefsPage.Widget)
 }
 
@@ -482,7 +479,7 @@ func (uh *UserHome) confirmHomebrewUninstall(
 	dialog.AddResponse("uninstall", "Uninstall")
 	dialog.SetResponseAppearance("uninstall", adw.ResponseDestructiveValue)
 
-	responseCb := func(_ adw.AlertDialog, response string) {
+	uh.confirmations.connect(dialog, func(response string) {
 		if response != "uninstall" {
 			gate.Reset()
 			return
@@ -490,8 +487,7 @@ func (uh *UserHome) confirmHomebrewUninstall(
 		setHomebrewControlsSensitive(controls, false)
 		primary.SetLabel("Uninstalling…")
 		go uh.runHomebrewUninstall(name, kind, primary, controls, gate)
-	}
-	dialog.ConnectResponse(&responseCb)
+	})
 	dialog.Present(&uh.applicationsPrefsPage.Widget)
 }
 
@@ -658,6 +654,7 @@ func (uh *UserHome) loadFlatpakApplications() {
 
 		// Clear rows added by a previous load before repopulating
 		uh.flatpakRows.Clear(func(r *adw.ActionRow) { uh.flatpakExpander.Remove(&r.Widget) })
+		uh.flatpakButtons.clear()
 
 		uh.flatpakExpander.SetSubtitle(fmt.Sprintf("%d installed", len(entries)))
 		uh.flatpakExpander.SetEnableExpansion(len(entries) > 0)
@@ -682,13 +679,12 @@ func (uh *UserHome) loadFlatpakApplications() {
 			name := presentation.Title
 			gate := &actionstate.Gate{}
 			button := uninstallBtn
-			clickedCb := func(_ gtk.Button) {
+			uh.flatpakButtons.connect(uninstallBtn, func(gtk.Button) {
 				if !gate.TryStart() {
 					return
 				}
 				uh.confirmFlatpakUninstall(appID, name, isUser, button, gate)
-			}
-			uninstallBtn.ConnectClicked(&clickedCb)
+			})
 
 			row.AddSuffix(&uninstallBtn.Widget)
 			uh.flatpakExpander.AddRow(&row.Widget)
@@ -707,15 +703,14 @@ func (uh *UserHome) confirmFlatpakUninstall(appID, name string, userScope bool, 
 	dialog.AddResponse("confirm", "Uninstall")
 	dialog.SetResponseAppearance("confirm", adw.ResponseDestructiveValue)
 
-	responseCb := func(_ adw.AlertDialog, response string) {
+	uh.confirmations.connect(dialog, func(response string) {
 		if response != "confirm" {
 			gate.Reset()
 			return
 		}
 		button.SetSensitive(false)
 		go uh.runFlatpakUninstall(appID, name, userScope, button, gate)
-	}
-	dialog.ConnectResponse(&responseCb)
+	})
 	dialog.Present(&uh.applicationsPrefsPage.Widget)
 }
 
@@ -785,6 +780,7 @@ func (uh *UserHome) onHomebrewSearch() {
 			uh.searchResultRows.Clear(func(row *adw.ActionRow) {
 				uh.searchResultsExpander.Remove(&row.Widget)
 			})
+			uh.searchResultButtons.clear()
 
 			resultsSubtitle := fmt.Sprintf("%d results", len(results))
 			switch len(results) {
@@ -810,13 +806,12 @@ func (uh *UserHome) onHomebrewSearch() {
 				result := result
 				gate := &actionstate.Gate{}
 				button := installBtn
-				clickedCb := func(_ gtk.Button) {
+				uh.searchResultButtons.connect(installBtn, func(gtk.Button) {
 					if !gate.TryStart() {
 						return
 					}
 					uh.confirmHomebrewInstall(result, button, gate)
-				}
-				installBtn.ConnectClicked(&clickedCb)
+				})
 
 				row.AddSuffix(&installBtn.Widget)
 				uh.searchResultsExpander.AddRow(&row.Widget)
@@ -836,7 +831,7 @@ func (uh *UserHome) confirmHomebrewInstall(result homebrew.SearchResult, button 
 	dialog.AddResponse("install", "Install")
 	dialog.SetResponseAppearance("install", adw.ResponseSuggestedValue)
 
-	responseCb := func(_ adw.AlertDialog, response string) {
+	uh.confirmations.connect(dialog, func(response string) {
 		if response != "install" {
 			gate.Reset()
 			return
@@ -844,8 +839,7 @@ func (uh *UserHome) confirmHomebrewInstall(result homebrew.SearchResult, button 
 		button.SetSensitive(false)
 		button.SetLabel("Installing…")
 		go uh.installHomebrewSearchResult(result, button, gate)
-	}
-	dialog.ConnectResponse(&responseCb)
+	})
 	dialog.Present(&uh.applicationsPrefsPage.Widget)
 }
 
