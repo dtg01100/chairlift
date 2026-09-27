@@ -53,6 +53,7 @@ internal/views/                 Page builders and event handlers (one file per p
         ├── internal/updateproviders/ Provider adapters for the unified update coordinator
         ├── internal/userprefs/ Pure user update preferences model
         ├── internal/settings/  GSettings adapter for user update preferences
+        ├── internal/schemadir/ Compiles the GSettings schemas shipped beside a Homebrew install into a per-user cache for GSETTINGS_SCHEMA_DIR
         ├── internal/commands/  Canonical command and keyboard shortcut inventory
         └── internal/version/   Build metadata (ldflags injection)
 ```
@@ -1907,6 +1908,24 @@ compiles the schema cache on a direct install.
 Verified 2026-09-26 in `ghcr.io/projectbluefin/dakota:testing`, as root, with
 `--dry-run`: every ublue helper command produced the correct argv, and the
 ublue policy is valid XML.
+
+The cask and the image ship on separate schedules, so an image can be older
+than the GUI running on it or carry no helper at all. The views therefore
+offer a helper-backed control only when the image provides it:
+`ublue.Status.Commands`, filled by `Detect`, is the set of helper commands for
+which `/usr/bin/chairlift-helper` is installed and an installed PolicyKit
+action names that path as `exec.path` and the command as `exec.argv1`.
+`Status.Supports` gates the Developer switch, the early-updates switch, the
+driver Switch button, Automatic Updates, Roll Back, and Factory Reset; a
+missing command hides the control (or leaves the channel switch inert)
+instead of letting a person authenticate for an action pkexec cannot run.
+Reading the policies is a plain file read, needs no privilege, and is correct
+for every image already shipped. A dry run never invokes the helper, so it
+offers every command; that keeps the preview, the screenshot walkthrough, and
+the AT-SPI suite rendering the full surface. Restart is not gated: it is
+reached only through the update flow after a staged update. The GSettings
+schemas need no image support at all: see `internal/schemadir` and
+[reference.md](../reference.md#livery-page-livery_page).
 
 The archive does **not** ship `bootc-update-stage`. That
 operation is distro policy, so an image that enables `bootc_updates_group`

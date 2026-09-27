@@ -14,6 +14,7 @@ import (
 	"github.com/projectbluefin/chairlift/internal/app"
 	"github.com/projectbluefin/chairlift/internal/firstrun"
 	"github.com/projectbluefin/chairlift/internal/livery"
+	"github.com/projectbluefin/chairlift/internal/schemadir"
 	"github.com/projectbluefin/chairlift/internal/version"
 )
 
@@ -26,6 +27,21 @@ func main() {
 	log.Println("main: process start")
 
 	version.Version = buildVersion
+
+	// A Homebrew install cannot register schemas system-wide, so compile the
+	// ones shipped beside the binary and point GLib at them before anything
+	// reads a setting. An explicit GSETTINGS_SCHEMA_DIR (a source checkout,
+	// the E2E harness) is left alone.
+	if os.Getenv(schemadir.EnvVar) == "" {
+		dir, err := schemadir.Prepare()
+		if err != nil {
+			log.Printf("main: settings schemas: %v", err)
+		} else if dir != "" {
+			if err := os.Setenv(schemadir.EnvVar, dir); err != nil {
+				log.Printf("main: settings schemas: %v", err)
+			}
+		}
+	}
 
 	// Rotation runs headless, from the systemd user unit the Livery page
 	// installs. It must short-circuit before app.New(), which brings up GTK

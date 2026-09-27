@@ -10,6 +10,7 @@ import (
 	"github.com/projectbluefin/chairlift/internal/gaming"
 	"github.com/projectbluefin/chairlift/internal/imageinfo"
 	"github.com/projectbluefin/chairlift/internal/ublue"
+	"github.com/projectbluefin/chairlift/internal/ubluehelper"
 	"github.com/projectbluefin/chairlift/internal/updex"
 	"github.com/projectbluefin/chairlift/internal/views/actionmsg"
 	"github.com/projectbluefin/chairlift/internal/views/featurestatus"
@@ -342,7 +343,10 @@ func (uh *UserHome) buildBluefinGroups(page *adw.PreferencesPage) bool {
 		status.CanSwitchTo != imageinfo.ChannelUnknown, status.Developer,
 		dxEnabled, gamingEnabled)
 
-	if dxEnabled {
+	// The developer switch runs the helper; an image that does not provide
+	// both commands gets no switch rather than one that fails after
+	// authentication.
+	if dxEnabled && status.Supports(ubluehelper.CommandDXEnable, ubluehelper.CommandDXDisable) {
 		uh.buildDeveloperGroup(page, status)
 	}
 	if gamingEnabled {

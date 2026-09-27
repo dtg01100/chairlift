@@ -14,6 +14,7 @@ import (
 	"github.com/projectbluefin/chairlift/internal/imageinfo"
 	"github.com/projectbluefin/chairlift/internal/stageexec"
 	"github.com/projectbluefin/chairlift/internal/ublue"
+	"github.com/projectbluefin/chairlift/internal/ubluehelper"
 	"github.com/projectbluefin/chairlift/internal/views/actionmsg"
 	"github.com/projectbluefin/chairlift/internal/views/actionstate"
 	"github.com/projectbluefin/chairlift/internal/views/badgestate"
@@ -921,7 +922,9 @@ func (uh *UserHome) buildChannelGroup(page *adw.PreferencesPage, status ublue.St
 	group.SetDescription("These replace the operating system itself. Both need your administrator password, a large download, and a restart.")
 
 	onTesting := status.Channel == imageinfo.ChannelTesting
-	switchable := status.CanSwitchTo != imageinfo.ChannelUnknown
+	// Nothing to switch to, or an image that does not provide the helper
+	// command, both leave the switch inert.
+	switchable := status.CanSwitchTo != imageinfo.ChannelUnknown && status.Supports(ubluehelper.CommandChannelSwitch)
 	presentation := pageview.ChannelRow(onTesting, switchable)
 
 	row := adw.NewActionRow()
@@ -969,7 +972,7 @@ func (uh *UserHome) buildDriverRow(status ublue.Status) {
 	row.SetTitle(presentation.Title)
 	row.SetSubtitle(presentation.Subtitle)
 
-	if status.RecommendedDriver != "" {
+	if status.RecommendedDriver != "" && status.Supports(ubluehelper.CommandDriverSwitch) {
 		driver := status.RecommendedDriver
 		driverRow := row
 		button := gtk.NewButtonWithLabel("Switch")

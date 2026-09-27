@@ -10,6 +10,7 @@ import (
 	"github.com/projectbluefin/chairlift/internal/flatpak"
 	"github.com/projectbluefin/chairlift/internal/powerwash"
 	"github.com/projectbluefin/chairlift/internal/ublue"
+	"github.com/projectbluefin/chairlift/internal/ubluehelper"
 	"github.com/projectbluefin/chairlift/internal/views/actionmsg"
 	"github.com/projectbluefin/chairlift/internal/views/pageview"
 
@@ -69,17 +70,21 @@ func (uh *UserHome) buildResetGroup(page *adw.PreferencesPage) {
 	powerwashRow.AddSuffix(&powerwashBtn.Widget)
 	group.Add(&powerwashRow.Widget)
 
-	resetRow := adw.NewActionRow()
-	resetPresentation := pageview.FactoryResetRow()
-	resetRow.SetTitle(resetPresentation.Title)
-	resetRow.SetSubtitle(resetPresentation.Subtitle)
-	resetBtn := gtk.NewButtonWithLabel(factoryResetButtonLabel)
-	resetBtn.SetValign(gtk.AlignCenterValue)
-	resetBtn.AddCssClass("destructive-action")
-	resetClickedCb := func(gtk.Button) { uh.onFactoryResetClicked(resetBtn, resetRow) }
-	resetBtn.ConnectClicked(&resetClickedCb)
-	resetRow.AddSuffix(&resetBtn.Widget)
-	group.Add(&resetRow.Widget)
+	// Factory Reset runs the helper; an image that does not provide the
+	// command gets no row rather than one that fails after authentication.
+	if ublue.StatusCached().Supports(ubluehelper.CommandFactoryReset) {
+		resetRow := adw.NewActionRow()
+		resetPresentation := pageview.FactoryResetRow()
+		resetRow.SetTitle(resetPresentation.Title)
+		resetRow.SetSubtitle(resetPresentation.Subtitle)
+		resetBtn := gtk.NewButtonWithLabel(factoryResetButtonLabel)
+		resetBtn.SetValign(gtk.AlignCenterValue)
+		resetBtn.AddCssClass("destructive-action")
+		resetClickedCb := func(gtk.Button) { uh.onFactoryResetClicked(resetBtn, resetRow) }
+		resetBtn.ConnectClicked(&resetClickedCb)
+		resetRow.AddSuffix(&resetBtn.Widget)
+		group.Add(&resetRow.Widget)
+	}
 
 	page.Add(group)
 	log.Printf("views: reset group built")

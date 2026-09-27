@@ -90,6 +90,10 @@ type Status struct {
 	// set: that toggle installs the same applications as user Flatpaks, so
 	// on these images it would only shadow what the image already provides.
 	Gaming bool
+	// Commands is the set of helper commands this host can run: the helper
+	// is installed and an installed PolicyKit action authorizes each one.
+	// See Supports.
+	Commands map[string]bool
 }
 
 // Detect returns the current Bluefin-family status. A host with no image
@@ -141,7 +145,9 @@ func Detect() (Status, error) {
 	info, err := detect()
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return Status{}, nil
+			// Factory Reset and Roll Back do not depend on the image
+			// descriptor, so their availability is still reported.
+			return Status{Commands: detectCommands()}, nil
 		}
 		return Status{}, &Error{Message: fmt.Sprintf("reading image descriptor: %v", err)}
 	}
@@ -153,6 +159,7 @@ func Detect() (Status, error) {
 		Tag:       info.EffectiveTag(),
 		Ref:       info.CleanRef(),
 		Gaming:    info.IsGaming(),
+		Commands:  detectCommands(),
 	}
 
 	groups, err := currentUserGroups()

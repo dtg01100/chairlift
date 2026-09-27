@@ -225,11 +225,16 @@ func stubDetectionWithGPU(t *testing.T, info imageinfo.Info, infoErr error, grou
 	t.Helper()
 
 	previousInfo, previousGroups, previousGPU := detectInfo, lookupGroups, detectGPU
+	previousStat, previousDir := statHelper, policyActionsDir
 	detectInfo = func() (imageinfo.Info, error) { return info, infoErr }
 	lookupGroups = func() ([]string, error) { return groups, nil }
 	detectGPU = func() gpu.Set { return hardware }
+	// The real host's helper and policies must not leak into Detect's result.
+	statHelper = func(string) (os.FileInfo, error) { return nil, os.ErrNotExist }
+	policyActionsDir = t.TempDir()
 	t.Cleanup(func() {
 		detectInfo, lookupGroups, detectGPU = previousInfo, previousGroups, previousGPU
+		statHelper, policyActionsDir = previousStat, previousDir
 	})
 }
 

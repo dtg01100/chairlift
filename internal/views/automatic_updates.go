@@ -9,6 +9,7 @@ import (
 	"github.com/projectbluefin/chairlift/internal/autoupdate"
 	"github.com/projectbluefin/chairlift/internal/dryrun"
 	"github.com/projectbluefin/chairlift/internal/ublue"
+	"github.com/projectbluefin/chairlift/internal/ubluehelper"
 	"github.com/projectbluefin/chairlift/internal/views/actionmsg"
 	"github.com/projectbluefin/chairlift/internal/views/pageview"
 
@@ -61,6 +62,12 @@ func (uh *UserHome) loadAutomaticUpdatesGroup(group *adw.PreferencesGroup) {
 
 	if !state.Available() {
 		log.Printf("views: automatic updates unavailable (%s not installed)", autoupdate.TimerUnit)
+		return
+	}
+	// The switch runs the helper; an image that does not provide both
+	// commands gets no switch.
+	if !ublue.StatusCached().Supports(ubluehelper.CommandAutoEnable, ubluehelper.CommandAutoDisable) {
+		log.Printf("views: automatic updates hidden, this system does not provide the helper commands")
 		return
 	}
 

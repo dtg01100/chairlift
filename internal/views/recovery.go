@@ -7,6 +7,7 @@ import (
 	"github.com/projectbluefin/chairlift/internal/bootc"
 	"github.com/projectbluefin/chairlift/internal/dryrun"
 	"github.com/projectbluefin/chairlift/internal/ublue"
+	"github.com/projectbluefin/chairlift/internal/ubluehelper"
 	"github.com/projectbluefin/chairlift/internal/views/actionmsg"
 	"github.com/projectbluefin/chairlift/internal/views/pageview"
 
@@ -134,6 +135,8 @@ func (uh *UserHome) loadBootcRollbackStatus() {
 	defer cancel()
 
 	status, err := bootc.GetStatus(ctx)
+	// Roll Back runs the helper; without the command the row stays hidden.
+	helperSupported := ublue.StatusCached().Supports(ubluehelper.CommandRollback)
 
 	sgtk.RunOnMainThread(func() {
 		if err == nil && status != nil {
@@ -145,7 +148,7 @@ func (uh *UserHome) loadBootcRollbackStatus() {
 		if uh.bootcRollbackRow == nil {
 			return
 		}
-		if err != nil || status.Status.Rollback == nil {
+		if err != nil || status.Status.Rollback == nil || !helperSupported {
 			uh.bootcRollbackRow.SetVisible(false)
 			return
 		}
