@@ -962,8 +962,10 @@ func (uh *UserHome) buildDriverRow(status ublue.Status) {
 		return
 	}
 
+	// Recommend a switch only when the image provides the command that
+	// performs it; otherwise the row describes the current driver.
 	recommended := ""
-	if status.RecommendedDriver != "" {
+	if status.RecommendedDriver != "" && status.Supports(ubluehelper.CommandDriverSwitch) {
 		recommended = status.RecommendedDriver.DisplayName()
 	}
 	presentation := pageview.GraphicsDriverRow(status.Driver.DisplayName(), status.GPU, recommended)
