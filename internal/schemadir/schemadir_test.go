@@ -9,9 +9,9 @@ import (
 	"testing"
 )
 
-// install lays out a cask-style install: a binary with data/*.gschema.xml
+// caskInstall lays out a cask-style install: a binary with data/*.gschema.xml
 // beside it. It returns the binary's path.
-func install(t *testing.T, schemas map[string]string) string {
+func caskInstall(t *testing.T, schemas map[string]string) string {
 	t.Helper()
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "data"), 0o755); err != nil {
@@ -56,7 +56,7 @@ func stub(t *testing.T, binary, cache string) *int {
 // A cask install compiles once; every later launch of the same version reuses
 // the directory without running the compiler again.
 func TestPrepareCompilesOnceAndReuses(t *testing.T) {
-	binary := install(t, map[string]string{"a.gschema.xml": "<schemalist/>"})
+	binary := caskInstall(t, map[string]string{"a.gschema.xml": "<schemalist/>"})
 	calls := stub(t, binary, t.TempDir())
 
 	first, err := Prepare()
@@ -75,31 +75,42 @@ func TestPrepareCompilesOnceAndReuses(t *testing.T) {
 	}
 }
 
-// An upgrade whose schema changed compiles a new directory and removes the
-// one compiled for the old version.
-func TestPrepareRecompilesWhenSchemasChange(t *testing.T) {
+// An upgrade whose schemas changed recompiles into the same directory, so a
+// Livery rotation unit installed before the upgrade still finds it, and drops
+// a schema the new release no longer ships.
+func TestPrepareRecompilesInPlaceWhenSchemasChange(t *testing.T) {
 	cache := t.TempDir()
-	oldBinary := install(t, map[string]string{"a.gschema.xml": "<schemalist>old</schemalist>"})
-	stub(t, oldBinary, cache)
+	oldBinary := caskInstall(t, map[string]string{
+		"a.gschema.xml":       "<schemalist>old</schemalist>",
+		"dropped.gschema.xml": "<schemalist/>",
+	})
+	calls := stub(t, oldBinary, cache)
 	old, err := Prepare()
 	if err != nil || old == "" {
 		t.Fatalf("Prepare() = %q, %v", old, err)
 	}
 
-	newBinary := install(t, map[string]string{"a.gschema.xml": "<schemalist>new</schemalist>"})
+	newBinary := caskInstall(t, map[string]string{"a.gschema.xml": "<schemalist>new</schemalist>"})
 	executable = func() (string, error) { return newBinary, nil }
 	current, err := Prepare()
-	if err != nil || current == "" || current == old {
-		t.Fatalf("Prepare() after upgrade = %q, %v; want a new directory other than %q", current, err, old)
+	if err != nil || current != old {
+		t.Fatalf("Prepare() after upgrade = %q, %v; want the same directory %q", current, err, old)
 	}
-	if _, err := os.Stat(old); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("stale directory %q still present (err=%v)", old, err)
+	if *calls != 2 {
+		t.Errorf("compiler ran %d times, want 2 (once per distinct source set)", *calls)
+	}
+	source, err := os.ReadFile(filepath.Join(current, "a.gschema.xml"))
+	if err != nil || string(source) != "<schemalist>new</schemalist>" {
+		t.Errorf("a.gschema.xml = %q, %v; want the upgraded source", source, err)
+	}
+	if _, err := os.Stat(filepath.Join(current, "dropped.gschema.xml")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("dropped schema still present (err=%v)", err)
 	}
 }
 
 // A source build has no data/ beside the binary; there is nothing to prepare.
 func TestPrepareWithoutShippedSchemas(t *testing.T) {
-	binary := install(t, nil)
+	binary := caskInstall(t, nil)
 	calls := stub(t, binary, t.TempDir())
 
 	dir, err := Prepare()
@@ -114,7 +125,7 @@ func TestPrepareWithoutShippedSchemas(t *testing.T) {
 // A host without glib-compile-schemas degrades to today's behavior: the
 // schema is reported missing rather than the launch failing.
 func TestPrepareWithoutCompiler(t *testing.T) {
-	binary := install(t, map[string]string{"a.gschema.xml": "<schemalist/>"})
+	binary := caskInstall(t, map[string]string{"a.gschema.xml": "<schemalist/>"})
 	stub(t, binary, t.TempDir())
 	lookPath = func(string) (string, error) { return "", exec.ErrNotFound }
 
@@ -124,21 +135,55 @@ func TestPrepareWithoutCompiler(t *testing.T) {
 	}
 }
 
-// A failed compile returns an error and leaves no directory a later launch
-// would mistake for a good one.
-func TestPrepareFailedCompileLeavesNoDirectory(t *testing.T) {
+// A failed compile returns an error and leaves a previous good install
+// exactly as it was, so the launch keeps working schemas.
+func TestPrepareFailedCompileKeepsThePreviousInstall(t *testing.T) {
 	cache := t.TempDir()
-	binary := install(t, map[string]string{"a.gschema.xml": "<schemalist/>"})
+	good := caskInstall(t, map[string]string{"a.gschema.xml": "<schemalist>good</schemalist>"})
+	stub(t, good, cache)
+	dir, err := Prepare()
+	if err != nil || dir == "" {
+		t.Fatalf("Prepare() = %q, %v", dir, err)
+	}
+
+	broken := caskInstall(t, map[string]string{"a.gschema.xml": "<schemalist>broken</schemalist>"})
+	executable = func() (string, error) { return broken, nil }
+	compile = func(context.Context, string, string) error { return errors.New("invalid schema") }
+	if got, err := Prepare(); err == nil || got != "" {
+		t.Fatalf("Prepare() = %q, %v; want an error", got, err)
+	}
+
+	source, err := os.ReadFile(filepath.Join(dir, "a.gschema.xml"))
+	if err != nil || string(source) != "<schemalist>good</schemalist>" {
+		t.Errorf("a.gschema.xml = %q, %v; want the previous good source", source, err)
+	}
+	executable = func() (string, error) { return good, nil }
+	if got, err := Prepare(); err != nil || got != dir {
+		t.Errorf("Prepare() for the previous version = %q, %v; want its install reused", got, err)
+	}
+}
+
+// A first launch whose compile fails leaves no stamp a later launch would
+// mistake for a good install.
+func TestPrepareFailedFirstCompileLeavesNoStamp(t *testing.T) {
+	cache := t.TempDir()
+	binary := caskInstall(t, map[string]string{"a.gschema.xml": "<schemalist/>"})
 	stub(t, binary, cache)
 	compile = func(context.Context, string, string) error { return errors.New("invalid schema") }
 
-	dir, err := Prepare()
-	if err == nil || dir != "" {
+	if dir, err := Prepare(); err == nil || dir != "" {
 		t.Fatalf("Prepare() = %q, %v; want an error", dir, err)
 	}
-	entries, _ := os.ReadDir(filepath.Join(cache, "chairlift", "schemas"))
-	if len(entries) != 0 {
-		t.Errorf("cache holds %d entries after a failed compile, want none", len(entries))
+	target, err := Dir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(target, stampName)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("stamp present after a failed compile (err=%v)", err)
+	}
+	staged, _ := filepath.Glob(filepath.Join(filepath.Dir(target), ".schemas-staging-*"))
+	if len(staged) != 0 {
+		t.Errorf("staging directories left behind: %v", staged)
 	}
 }
 
@@ -161,7 +206,7 @@ func TestPrepareCompilesTheShippedSchemas(t *testing.T) {
 		}
 		schemas[filepath.Base(path)] = string(data)
 	}
-	binary := install(t, schemas)
+	binary := caskInstall(t, schemas)
 	stub(t, binary, t.TempDir())
 	lookPath = func(string) (string, error) { return compiler, nil }
 	compile = runCompile

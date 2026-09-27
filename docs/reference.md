@@ -159,9 +159,9 @@ source build has no installed schema — run `make schemas` and export the
 `GSETTINGS_SCHEMA_DIR` it prints, or the page reports its settings
 unavailable. A Homebrew install needs no step: on startup, when
 `GSETTINGS_SCHEMA_DIR` is unset, ChairLift compiles the schema XML shipped in
-`data/` beside its binary into `~/.cache/chairlift/schemas/<content-hash>/`
-once and points GSettings at it, so the schemas always match the running
-version. That needs `glib-compile-schemas` on the host; without it, or for an
+`data/` beside its binary into `~/.cache/chairlift/schemas/` and points
+GSettings at it, recompiling in place only when the shipped schemas change,
+so the schemas always match the running version and the path never moves. That needs `glib-compile-schemas` on the host; without it, or for an
 install that ships the XML elsewhere, GSettings searches only
 `/usr/share/glib-2.0/schemas`, the `glib-2.0/schemas` directory of any
 `$XDG_DATA_DIRS` entry, and `~/.local/share/glib-2.0/schemas`.

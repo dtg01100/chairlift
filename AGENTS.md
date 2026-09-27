@@ -433,6 +433,10 @@ An agent must not break these:
   `config.SchemaGroups` in both directions, enforced by
   `internal/installcheck`'s `TestCapabilityPrerequisitesMatchConfigSchema`, so
   a new config group is classified in the same change that adds it.
+  Per-control availability inside a group is not a capability: a
+  helper-backed control reads `ublue.Status.Supports`, which `Detect` fills
+  from the installed PolicyKit actions for `/usr/bin/chairlift-helper`,
+  alongside the descriptor-derived fields the views already use.
 - **Setup filters choices, not whole pages, and every choice acts through
   the page that owns it.** `internal/firstrun` snapshots the shared composed
   capability floor for at most three optional tasks: Appearance, Apps, and

@@ -12,6 +12,7 @@ import (
 	"github.com/projectbluefin/chairlift/internal/dryrun"
 	"github.com/projectbluefin/chairlift/internal/notify"
 	"github.com/projectbluefin/chairlift/internal/ublue"
+	"github.com/projectbluefin/chairlift/internal/ubluehelper"
 	"github.com/projectbluefin/chairlift/internal/updateflow"
 	"github.com/projectbluefin/chairlift/internal/userprefs"
 	"github.com/projectbluefin/chairlift/internal/views/updatepresent"
@@ -270,6 +271,20 @@ func (s *UpdateShell) StartRestart() {
 	go func() {
 		ctx, cancel := ublue.DefaultContext()
 		defer cancel()
+
+		// An image without the helper's restart command would only fail
+		// after authentication; ask for a restart instead.
+		if !ublue.StatusCached().Supports(ubluehelper.CommandRestart) {
+			sgtk.RunOnMainThread(func() {
+				if s.primary != nil {
+					s.primary.SetSensitive(true)
+				}
+				if s.toasts != nil {
+					s.toasts.ShowToast("Restart your computer to finish the update")
+				}
+			})
+			return
+		}
 
 		err := ublue.Restart(ctx)
 

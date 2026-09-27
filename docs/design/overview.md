@@ -1916,14 +1916,14 @@ offer a helper-backed control only when the image provides it:
 which `/usr/bin/chairlift-helper` is installed and an installed PolicyKit
 action names that path as `exec.path` and the command as `exec.argv1`.
 `Status.Supports` gates the Developer switch, the early-updates switch, the
-driver Switch button, Automatic Updates, Roll Back, and Factory Reset; a
-missing command hides the control (or leaves the channel switch inert)
+driver Switch button, Automatic Updates, Roll Back, Factory Reset, and the
+update flow's Restart; a missing command hides the control (leaves the
+channel switch inert, or has Restart ask the person to restart the computer)
 instead of letting a person authenticate for an action pkexec cannot run.
 Reading the policies is a plain file read, needs no privilege, and is correct
 for every image already shipped. A dry run never invokes the helper, so it
 offers every command; that keeps the preview, the screenshot walkthrough, and
-the AT-SPI suite rendering the full surface. Restart is not gated: it is
-reached only through the update flow after a staged update. The GSettings
+the AT-SPI suite rendering the full surface. The GSettings
 schemas need no image support at all: see `internal/schemadir` and
 [reference.md](../reference.md#livery-page-livery_page).
 
