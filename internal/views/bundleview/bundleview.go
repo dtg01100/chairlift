@@ -247,3 +247,25 @@ func (g *InstallGate) Running() bool {
 func (g *InstallGate) Completed() bool {
 	return g.state.Load() == gateComplete
 }
+
+// The three phases every Install button for a collection can show.
+const (
+	InstallLabelReady     = "Install"
+	InstallLabelRunning   = "Installing…"
+	InstallLabelCompleted = "Installed"
+)
+
+// InstallPhase is the label and sensitivity every button bound to a
+// collection shows for the gate's current state. A button connected while a
+// run is in progress, or after one completed, joins at this phase rather
+// than at a fresh "Install" that would do nothing when clicked.
+func (g *InstallGate) InstallPhase() (label string, sensitive bool) {
+	switch {
+	case g.Completed():
+		return InstallLabelCompleted, false
+	case g.Running():
+		return InstallLabelRunning, false
+	default:
+		return InstallLabelReady, true
+	}
+}

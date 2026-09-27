@@ -244,27 +244,32 @@ func TestGateResetAndCompletion(t *testing.T) {
 	}
 }
 
-// TestGateReportsItsPhase covers the accessors a late-connected button reads
-// to join at the phase every other button for the collection shows: a
-// button built after a run started must read "Installing…", and one built
-// after a live success must read "Installed", not a fresh "Install" that
-// does nothing when clicked.
-func TestGateReportsItsPhase(t *testing.T) {
+// TestGateInstallPhaseFollowsTheLifecycle covers what a late-connected
+// button reads to join at the phase every other button for the collection
+// shows: a button built after a run started must read "Installing…" and be
+// insensitive, one built after a live success "Installed" and insensitive,
+// and one built after a failed or dry run "Install" and sensitive — never a
+// sensitive "Install" over a completed gate, which does nothing when clicked.
+func TestGateInstallPhaseFollowsTheLifecycle(t *testing.T) {
 	var gate InstallGate
-	if gate.Running() || gate.Completed() {
-		t.Fatal("zero-value gate reports a phase other than ready")
+	steps := []struct {
+		name          string
+		transition    func()
+		wantLabel     string
+		wantSensitive bool
+	}{
+		{"ready", func() {}, InstallLabelReady, true},
+		{"running", func() { gate.TryStart() }, InstallLabelRunning, false},
+		{"reset after a failure or dry run", func() { gate.Reset() }, InstallLabelReady, true},
+		{"running again", func() { gate.TryStart() }, InstallLabelRunning, false},
+		{"completed", func() { gate.Complete() }, InstallLabelCompleted, false},
+		{"reset cannot reopen a completion", func() { gate.Reset() }, InstallLabelCompleted, false},
 	}
-	gate.TryStart()
-	if !gate.Running() || gate.Completed() {
-		t.Fatal("started gate does not report running")
-	}
-	gate.Reset()
-	if gate.Running() || gate.Completed() {
-		t.Fatal("reset gate still reports a phase")
-	}
-	gate.TryStart()
-	gate.Complete()
-	if gate.Running() || !gate.Completed() {
-		t.Fatal("completed gate does not report completed")
+	for _, step := range steps {
+		step.transition()
+		label, sensitive := gate.InstallPhase()
+		if label != step.wantLabel || sensitive != step.wantSensitive {
+			t.Fatalf("%s: InstallPhase = (%q, %v), want (%q, %v)", step.name, label, sensitive, step.wantLabel, step.wantSensitive)
+		}
 	}
 }
