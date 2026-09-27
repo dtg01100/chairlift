@@ -100,7 +100,6 @@ var unprivilegedExecSites = []execSite{
 	{File: "internal/livery/apply.go", Func: "execCommand"},                   // gsettings / dconf / gtk-update-icon-cache / systemctl --user
 	{File: "internal/printerapp/printerapp.go", Func: "execSystemctlOutput"},  // systemctl --user
 	{File: "internal/troubleshoot/troubleshoot.go", Func: "defaultRunSetup"},  // user-scope setup
-	{File: "internal/schemadir/schemadir.go", Func: "runCompile"},             // glib-compile-schemas into the user's cache
 	{File: "internal/views/applications_page.go", Func: "UserHome.launchApp"}, // gtk-launch
 	{File: "internal/views/help_page.go", Func: "UserHome.openURL"},           // xdg-open
 }

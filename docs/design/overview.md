@@ -53,7 +53,6 @@ internal/views/                 Page builders and event handlers (one file per p
         ├── internal/updateproviders/ Provider adapters for the unified update coordinator
         ├── internal/userprefs/ Pure user update preferences model
         ├── internal/settings/  GSettings adapter for user update preferences
-        ├── internal/schemadir/ Compiles the GSettings schemas shipped beside a Homebrew install into a per-user cache for GSETTINGS_SCHEMA_DIR
         ├── internal/commands/  Canonical command and keyboard shortcut inventory
         └── internal/version/   Build metadata (ldflags injection)
 ```
@@ -1923,9 +1922,7 @@ instead of letting a person authenticate for an action pkexec cannot run.
 Reading the policies is a plain file read, needs no privilege, and is correct
 for every image already shipped. A dry run never invokes the helper, so it
 offers every command; that keeps the preview, the screenshot walkthrough, and
-the AT-SPI suite rendering the full surface. The GSettings
-schemas need no image support at all: see `internal/schemadir` and
-[reference.md](../reference.md#livery-page-livery_page).
+the AT-SPI suite rendering the full surface.
 
 The archive does **not** ship `bootc-update-stage`. That
 operation is distro policy, so an image that enables `bootc_updates_group`
