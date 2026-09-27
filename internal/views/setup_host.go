@@ -201,6 +201,28 @@ type bundleInstall struct {
 	buttons []*gtk.Button
 }
 
+// The three phases every button for a collection can show. Which one is
+// current is the gate's answer, so a button connected after a run started
+// or finished — the setup assistant is built lazily, after the Apps page —
+// reads the same phase as the buttons that watched the run.
+const (
+	bundleInstallReady     = "Install"
+	bundleInstallRunning   = "Installing…"
+	bundleInstallCompleted = "Installed"
+)
+
+// phase returns the label and sensitivity the shared gate's state calls for.
+func (b *bundleInstall) phase() (label string, sensitive bool) {
+	switch {
+	case b.gate.Completed():
+		return bundleInstallCompleted, false
+	case b.gate.Running():
+		return bundleInstallRunning, false
+	default:
+		return bundleInstallReady, true
+	}
+}
+
 // show applies the label and sensitivity every bound button shows
 // for a phase of the shared install.
 func (b *bundleInstall) show(label string, sensitive bool) {
@@ -226,6 +248,12 @@ func (uh *UserHome) ConnectBundleInstall(bundle homebrew.Bundle, button *gtk.But
 		uh.bundleInstalls[bundle.Path] = shared
 	}
 	shared.buttons = append(shared.buttons, button)
+	// A button connected while a run is in progress, or after one completed,
+	// joins at the phase the others already show; a fresh "Install" here
+	// would be a button that does nothing when clicked.
+	label, sensitive := shared.phase()
+	button.SetLabel(label)
+	button.SetSensitive(sensitive)
 	uh.bundleButtons.connect(button, func(gtk.Button) {
 		uh.runBundleInstall(bundle, shared)
 	})
@@ -241,7 +269,7 @@ func (uh *UserHome) runBundleInstall(bundle homebrew.Bundle, shared *bundleInsta
 		return
 	}
 	collection := bundleview.Describe(bundle.Name, bundle.Description, bundle.ItemCount)
-	shared.show("Installing…", false)
+	shared.show(bundleInstallRunning, false)
 
 	go func() {
 		if err := homebrew.BundleInstall(bundle.Path); err != nil {
@@ -250,7 +278,7 @@ func (uh *UserHome) runBundleInstall(bundle homebrew.Bundle, shared *bundleInsta
 			log.Printf("Error installing app collection %q: %v", bundle.Name, err)
 			sgtk.RunOnMainThread(func() {
 				shared.gate.Reset()
-				shared.show("Install", true)
+				shared.show(bundleInstallReady, true)
 				var trustErr *homebrew.UntrustedTapError
 				if errors.As(err, &trustErr) {
 					uh.toastAdder.ShowErrorToast(trustmsg.BundleMessage(collection.Title, trustErr.Tap))
@@ -268,7 +296,7 @@ func (uh *UserHome) runBundleInstall(bundle homebrew.Bundle, shared *bundleInsta
 		sgtk.RunOnMainThread(func() {
 			if decision.Complete {
 				shared.gate.Complete()
-				shared.show("Installed", false)
+				shared.show(bundleInstallCompleted, false)
 				// A live install can add packages the current inventory
 				// snapshot predates, so refresh the installed list to
 				// match. Under dry-run decision.Complete is false —
@@ -276,7 +304,7 @@ func (uh *UserHome) runBundleInstall(bundle homebrew.Bundle, shared *bundleInsta
 				go uh.loadHomebrewPackages()
 			} else {
 				shared.gate.Reset()
-				shared.show("Install", true)
+				shared.show(bundleInstallReady, true)
 			}
 			uh.toastAdder.ShowToast(decision.Toast)
 		})

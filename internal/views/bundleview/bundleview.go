@@ -237,3 +237,13 @@ func (g *InstallGate) Reset() {
 func (g *InstallGate) Complete() {
 	g.state.CompareAndSwap(gateRunning, gateComplete)
 }
+
+// Running reports whether an install is in progress behind the gate.
+func (g *InstallGate) Running() bool {
+	return g.state.Load() == gateRunning
+}
+
+// Completed reports whether a live install succeeded and closed the gate.
+func (g *InstallGate) Completed() bool {
+	return g.state.Load() == gateComplete
+}

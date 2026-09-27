@@ -243,3 +243,28 @@ func TestGateResetAndCompletion(t *testing.T) {
 		t.Fatal("reset reopened a completed gate")
 	}
 }
+
+// TestGateReportsItsPhase covers the accessors a late-connected button reads
+// to join at the phase every other button for the collection shows: a
+// button built after a run started must read "Installing…", and one built
+// after a live success must read "Installed", not a fresh "Install" that
+// does nothing when clicked.
+func TestGateReportsItsPhase(t *testing.T) {
+	var gate InstallGate
+	if gate.Running() || gate.Completed() {
+		t.Fatal("zero-value gate reports a phase other than ready")
+	}
+	gate.TryStart()
+	if !gate.Running() || gate.Completed() {
+		t.Fatal("started gate does not report running")
+	}
+	gate.Reset()
+	if gate.Running() || gate.Completed() {
+		t.Fatal("reset gate still reports a phase")
+	}
+	gate.TryStart()
+	gate.Complete()
+	if gate.Running() || !gate.Completed() {
+		t.Fatal("completed gate does not report completed")
+	}
+}
