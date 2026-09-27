@@ -334,6 +334,14 @@ bump: ## tag the next calendar version (YY.MM.N); PRE=alpha.1 for a prerelease
 		echo "Working directory is not clean. Please commit or stash changes before bumping version."; \
 		exit 1; \
 	fi
+	@# Tag only what main ships. A tag on a branch commit leaves main without the
+	@# tag in its history, so the next release's notes compare against the one
+	@# before it (v26.09.0-alpha.2 was tagged on a branch).
+	@git fetch --quiet origin main && \
+	if [ "$$(git rev-parse HEAD)" != "$$(git rev-parse origin/main)" ]; then \
+		echo "HEAD is not origin/main. Check out and pull main before bumping the version."; \
+		exit 1; \
+	fi
 	@echo "Creating new tag..."
 	@version=$$(./scripts/next-version.sh $(PRE)) && \
 		git tag -a $$version -m "Version $$version" && \
