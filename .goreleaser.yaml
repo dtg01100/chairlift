@@ -110,12 +110,16 @@ signs:
   # file. Requires the id-token: write permission in .github/workflows/release
   # and the cosign binary installed there. Emits <asset>.sigstore.json
   # alongside each asset. Verify against the release notes instructions below.
+  # --oidc-provider=github-actions takes the identity token from the workflow;
+  # without it a failed token fetch falls back to an interactive device flow
+  # that waits five minutes and fails the release (v26.09.0-alpha.3).
   - id: cosign-archives
     cmd: cosign
     signature: "${artifact}.sigstore.json"
     args:
       - sign-blob
       - "--yes"
+      - "--oidc-provider=github-actions"
       - "--bundle=${signature}"
       - "${artifact}"
     artifacts: archive
@@ -126,6 +130,7 @@ signs:
     args:
       - sign-blob
       - "--yes"
+      - "--oidc-provider=github-actions"
       - "--bundle=${signature}"
       - "${artifact}"
     artifacts: checksum

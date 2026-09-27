@@ -101,8 +101,8 @@ jobs:
           # compiler. See ci pin Go and GoReleaser in the write-capable
           # release job (#88).
           go-version: "1.26.6"
-      # GoReleaser OSS (free): publishes binaries, archives, and the rpm/deb/apk
-      # nFPM packages straight to the GitHub Release for this tag. No Pro
+      # GoReleaser OSS (free): publishes the archives, checksums, SBOMs and
+      # signatures straight to the GitHub Release for this tag. No Pro
       # license or external package-repo credentials needed.
       # Install cosign for keyless (Fulcio/Rekor) signing of the archives and
       # checksums file below. Needs the id-token: write permission above.

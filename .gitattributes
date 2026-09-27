@@ -1,1 +1,3 @@
 * text=auto eol=lf
+# Append-only JSONL: keep both sides of concurrent additions on merge and rebase.
+.memory/corrections.jsonl merge=union

@@ -123,34 +123,28 @@ never asks for a reboot.
 
 ### Installing a Release
 
-Each [Control Center release](https://github.com/projectbluefin/chairlift/releases)
-provides ready-to-install packages for 64-bit Intel/AMD and Arm systems.
-Choose the package format for your distribution:
-
-| Distribution family | Full-package filename | Install command |
-|---|---|---|
-| Debian/Ubuntu | `projectbluefin-chairlift_<version>_<arch>.deb` (`amd64` or `arm64`) | `sudo apt install ./<downloaded-filename>` |
-| Fedora/RHEL | `projectbluefin-chairlift-<version>-1.<arch>.rpm` (`x86_64` or `aarch64`) | `sudo dnf install ./<downloaded-filename>` |
-| Alpine | `projectbluefin-chairlift_<version>_<arch>.apk` (`x86_64` or `aarch64`) | `sudo apk add --allow-untrusted ./<downloaded-filename>` |
-
-For a normal system installation, download the full `projectbluefin-chairlift`
-package. It includes the GUI, both privileged helpers
-(`/usr/bin/chairlift-updex-helper` and `/usr/bin/chairlift-ublue-helper`),
-desktop assets, four PolicyKit policies, and package-maintainer configuration.
-
-Use the similarly named `projectbluefin-chairlift-system-integration` package
-**only** when the Control Center GUI is already delivered through a user-scoped
-mechanism such as the Homebrew cask. That package supplies only the root-owned
-helpers, policies, configuration, and channel-table example needed by such an
-installation; it does not include the GUI. Never install both packages: they
-intentionally conflict because they own the same system-integration files.
-
-Download `checksums.txt` from the same release and verify the selected package
-before installing it:
+Control Center is distributed through Homebrew:
 
 ```bash
-package='<downloaded-package-filename>'
-grep -F "  $package" checksums.txt | sha256sum --check -
+brew install --cask ublue-os/tap/chairlift
+```
+
+The cask installs the GUI, its desktop entry and icons, and compiles the
+GSettings schemas into `~/.local/share/glib-2.0/schemas`, all in user scope.
+A cask cannot install root-owned files, so the privileged pieces come from the
+operating system image: the helper at `/usr/bin/chairlift-helper` and its
+PolicyKit policy (`io.projectbluefin.chairlift.ublue.policy`). Bluefin-family
+images get both from `projectbluefin/common`. Control Center offers a
+privileged action only when the image provides it.
+
+Each [release](https://github.com/projectbluefin/chairlift/releases) publishes
+`chairlift_<version>_linux_<arch>.tar.gz` (`amd64` or `arm64`), which the cask
+and OS images install from, plus a signed `checksums.txt`. Verify an archive
+before using it directly:
+
+```bash
+archive='<downloaded-archive-filename>'
+grep -F "  $archive" checksums.txt | sha256sum --check -
 ```
 
 ### Building from Source
@@ -168,7 +162,7 @@ make build
 # Binaries are written to build/:
 #   build/chairlift                 the main application
 #   build/chairlift-updex-helper    privileged helper for updex feature writes
-#   build/chairlift-ublue-helper    privileged helper for Bluefin-family system writes
+#   build/chairlift-helper          privileged helper for Bluefin-family system writes
 
 # Install (binaries, polkit policies, icons, desktop file)
 sudo make install
@@ -181,16 +175,15 @@ default — no need to pass `PREFIX` explicitly). PolicyKit's `polkitd` reads
 `/usr/share/polkit-1/actions`, and `pkexec` matches each privileged executable
 against the absolute path recorded in that action's
 `org.freedesktop.policykit.exec.path` annotation: `/usr/bin/chairlift-updex-helper`,
-`/usr/bin/chairlift-ublue-helper`, or `/usr/libexec/bootc-update-stage`. The
+`/usr/bin/chairlift-helper`, or `/usr/libexec/bootc-update-stage`. The
 helper policies also select the authorized subcommand through
 `org.freedesktop.policykit.exec.argv1`.
 Installing under any other prefix places those files where polkit never looks
 or where the helper paths no longer match, so the privileged updex,
 Bluefin-family, and bootc-staging features silently stop
 working (or fall back to a more restrictive, always-reprompting authentication
-rule). This also matches the layout used by ChairLift's full
-`projectbluefin-chairlift` nFPM package, so a source install and a full
-packaged install end up identical.
+rule). OS images install the helper and policies from the release archive at
+these same paths, so a source install and an image end up identical.
 
 Control Center does not install passwordless PolicyKit rules. Bootc staging,
 updex writes, and Bluefin-family system operations use the
@@ -209,30 +202,10 @@ Both paths install package-maintainer configuration defaults at
 `/usr/share/chairlift/config.yml`. They never create or overwrite the
 administrator-owned `/etc/chairlift/config.yml` override.
 
-Releases also publish a small
-`projectbluefin-chairlift-system-integration` deb/rpm/apk for distributions that
-deliver the GUI through a user-scoped mechanism such as the Homebrew cask. It
-installs the fixed helper binaries at `/usr/bin/chairlift-updex-helper` and
-`/usr/bin/chairlift-ublue-helper`; the three policies
-`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.bootc.policy`,
-`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.updex.policy`, and
-`/usr/share/polkit-1/actions/io.projectbluefin.chairlift.ublue.policy`;
-`/usr/share/chairlift/config.yml`; and the documented channel-table example at
-`/usr/share/doc/chairlift/channels.example.yml`. It does not install the GUI.
-The integration and full packages conflict intentionally because they own the
-same privileged files.
-
-The full `projectbluefin-chairlift` deb/rpm/apk declares its mandatory runtime
-dependencies, per format, because distro package names differ: `bash` (the
-`/usr/bin/chairlift-wrapper` launcher the desktop entry runs) plus the GTK4 and
-Libadwaita runtime libraries — `libgtk-4-1`/`libadwaita-1-0` on deb,
-`gtk4`/`libadwaita` on rpm, and `gtk4.0`/`libadwaita` on apk. The integration
-package declares none: it ships no GUI, desktop entry, or wrapper script.
-
 The bootc policy deliberately retains the fixed
 `/usr/libexec/bootc-update-stage` path. A distribution must provide a trusted
 stage helper at exactly that path before enabling `bootc_updates_group`; the
-integration package does not provide a distro-specific staging implementation.
+release archive does not provide a distro-specific staging implementation.
 Control Center hides the group when the helper is absent.
 
 `PREFIX` can still be overridden (e.g. `make install PREFIX=$HOME/.local`)
@@ -242,7 +215,7 @@ annotations in that case.
 
 `DESTDIR` layers underneath `PREFIX` as usual, unchanged by any of the
 above, for staged/packaged installs (`make install DESTDIR=/path/to/stage
-PREFIX=/usr`) — this is what `.goreleaser.yaml`'s nFPM packaging uses.
+PREFIX=/usr`) — this is how an image stages the files it installs.
 
 **Migrating from a prior `/usr/local` source install:** `PREFIX` used to
 default to `/usr/local`. Before reinstalling at the new `/usr` default,
@@ -253,7 +226,7 @@ Other useful targets: `make dev` (CGO-enabled build with `-race` for development
 ### Dependencies
 
 - Go (see `go.mod` for the toolchain version)
-- GTK 4 and libadwaita 1 (shared libraries, loaded at runtime by puregotk — no GTK dev headers or CGO needed to build; declared as a mandatory runtime dependency of the published deb/rpm/apk packages)
+- GTK 4 and libadwaita 1 (shared libraries, loaded at runtime by puregotk — no GTK dev headers or CGO needed to build; required at runtime)
 - Bash (required by the `chairlift-wrapper` launcher script the packaged desktop entry invokes)
 - Homebrew (optional, for package management features and tap trust)
 - Flatpak (optional)
@@ -413,7 +386,7 @@ chairlift/
 ├── cmd/
 │   ├── chairlift/               # Main application entry point
 │   ├── chairlift-updex-helper/  # Privileged helper for updex writes (invoked via pkexec)
-│   └── chairlift-ublue-helper/  # Privileged helper for Bluefin-family system writes
+│   └── chairlift-helper/        # Privileged helper for Bluefin-family system writes
 ├── internal/
 │   ├── app/       # GObject-registered Application (adw.Application subtype)
 │   ├── window/    # Main window: NavigationSplitView, sidebar, content stack
@@ -481,7 +454,7 @@ ChairLift is adapted from [Vanilla OS First Setup](https://github.com/Vanilla-OS
 
 ### License
 
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version — SPDX identifier `GPL-3.0-or-later`. This matches the in-app About dialog's license selection and the license declared in packaged (deb/rpm/apk) metadata.
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version — SPDX identifier `GPL-3.0-or-later`. This matches the in-app About dialog's license selection.
 
 See [LICENSE](LICENSE) for details.
 
