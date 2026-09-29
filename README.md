@@ -134,8 +134,9 @@ GSettings schemas into `~/.local/share/glib-2.0/schemas`, all in user scope.
 A cask cannot install root-owned files, so the privileged pieces come from the
 operating system image: the helper at `/usr/bin/chairlift-helper` and its
 PolicyKit policy (`io.projectbluefin.chairlift.ublue.policy`). Bluefin-family
-images get both from `projectbluefin/common`. Control Center offers a
-privileged action only when the image provides it.
+images will get both from `projectbluefin/common` once
+[common#1279](https://github.com/projectbluefin/common/pull/1279) lands.
+Control Center offers a privileged action only when the image provides it.
 
 Each [release](https://github.com/projectbluefin/chairlift/releases) publishes
 `chairlift_<version>_linux_<arch>.tar.gz` (`amd64` or `arm64`), which the cask

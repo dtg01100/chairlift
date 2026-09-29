@@ -110,16 +110,18 @@ signs:
   # file. Requires the id-token: write permission in .github/workflows/release
   # and the cosign binary installed there. Emits <asset>.sigstore.json
   # alongside each asset. Verify against the release notes instructions below.
-  # --oidc-provider=github-actions takes the identity token from the workflow;
-  # without it a failed token fetch falls back to an interactive device flow
-  # that waits five minutes and fails the release (v26.09.0-alpha.3).
+  # --fulcio-auth-flow=token: when the workflow's OIDC token is available cosign
+  # uses it as before; when none comes back, cosign fails at once instead of
+  # falling back to the interactive device flow, which waited five minutes and
+  # failed the first v26.09.0-alpha.3 release run with expired_token.
+  # (--oidc-provider does not prevent that fallback in cosign v3.0.6.)
   - id: cosign-archives
     cmd: cosign
     signature: "${artifact}.sigstore.json"
     args:
       - sign-blob
       - "--yes"
-      - "--oidc-provider=github-actions"
+      - "--fulcio-auth-flow=token"
       - "--bundle=${signature}"
       - "${artifact}"
     artifacts: archive
@@ -130,7 +132,7 @@ signs:
     args:
       - sign-blob
       - "--yes"
-      - "--oidc-provider=github-actions"
+      - "--fulcio-auth-flow=token"
       - "--bundle=${signature}"
       - "${artifact}"
     artifacts: checksum
