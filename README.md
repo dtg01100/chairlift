@@ -23,6 +23,9 @@ shown in the real application, captured by `make screenshots`.
 
 - Exposes our homebrew bundles as one click buttons.
 - "Turn on developer mode" etc.
+- **Tap Trust Management**: Homebrew 6's per-tap trust model hides packages
+  installed from untrusted taps; Control Center detects them and lets you
+  trust a tap (and resume its updates) with one click, without requiring root
 
 ### 🤖 Agents
 
@@ -40,15 +43,17 @@ Turns on Local inference for your system. Eric Curtin @ Docker is helping us out
 - Testing mode: aka, switch you to a testing branch and back again
   - Needs a reboot
 - Developer Mode: Turns DX mode on and off
-  - Adds you to a bunch of groups
-  - brew installs all the devkit stuff
-  - Adds linuxy things like "Containers" for distrobox, terminal in menu, pulp newsreader with changelogs.
+  - Adds you to the container, VM, and serial-device groups (`docker`,
+    `incus-admin`, `libvirt`, `dialout`) — effective at next login
+  - This is group membership, not a rebase to a `-dx` image
+  - A distribution can also have it install the Pulp feed reader and stage a
+    curated list of developer feeds; both ship off by default, and turning
+    Developer Mode back off never removes either
 - Gaming Mode: Turns gaming mode on and off
-- Switches you to OGC kernel
-  - Steam, mesa all on the image, like Bazzite
-  - Dedicated gaming session on the login screen
-  - ProtonUp-Qt, Protontricks, MangoHud, GOverlay, and Flatseal as Flatpaks
-  - Needs a reboot
+  - Installs Steam, ProtonUp-Qt, Protontricks, MangoHud, GOverlay, and
+    Flatseal as user Flatpaks — nothing is layered onto the system image, so
+    no reboot and no kernel change
+  - Hidden on images that already ship the gaming stack, like Bazzite
 
 ### 🔄 Unified Updates
 
@@ -68,7 +73,7 @@ and Operating system.
 
 ### 🎨 Livery
 
-Who you are, who you stand with, what you roll with. 
+Who you are, who you stand with, what you roll with.
 
 - **App Grid Livery**: your own logo on the Show Applications button —
   searchable across all 3,461 brands [Simple Icons](https://simpleicons.org/)
@@ -78,6 +83,8 @@ Who you are, who you stand with, what you roll with.
   the Open Gaming Collective, which is the default on a gaming image
 - **Dock Livery**: your CNCF project's own colour icon on the Files icon —
   search all 214 projects that publish artwork, from Kubernetes to bootc
+- **Rotate at Login**: the two foundation sections can advance one step each
+  time you sign in. Any section also accepts an SVG of your own
 
 ### 🔧 Updates & Maintenance
 
