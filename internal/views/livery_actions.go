@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 
+	"github.com/projectbluefin/chairlift/internal/dryrun"
 	"github.com/projectbluefin/chairlift/internal/livery"
 	"github.com/projectbluefin/chairlift/internal/views/actionstate"
 	"github.com/projectbluefin/chairlift/internal/views/pageview"
@@ -174,10 +175,17 @@ func (uh *UserHome) onLiverySurfaceToggled(surface livery.Surface, enabled bool)
 				uh.reportLiveryFailure("recording the previous panel mode", err)
 				return
 			}
-			sgtk.RunOnMainThread(func() {
-				uh.liveryState.SavedPanelIcon = icon
-				uh.liveryState.SavedPanelMode = mode
-			})
+			// Under --dry-run the SetString calls above are no-ops, so the
+			// persisted capture is unchanged. Skipping the in-memory mirror
+			// keeps the page's view of state aligned with what was actually
+			// written — otherwise the next enable would see non-empty saved
+			// values in memory and skip the capture the user asked for.
+			if !dryrun.Enabled() {
+				sgtk.RunOnMainThread(func() {
+					uh.liveryState.SavedPanelIcon = icon
+					uh.liveryState.SavedPanelMode = mode
+				})
+			}
 		}
 
 		if err := livery.SetBool(ctx, key, enabled); err != nil {
@@ -216,15 +224,20 @@ func (uh *UserHome) onLiverySurfaceToggled(surface livery.Surface, enabled bool)
 				uh.reportLiveryFailure("restoring the previous panel icon", err)
 				return
 			}
-			// The capture is only taken when both saved values are empty, and
+			// The capture is only taken when both saved keys are empty, and
 			// ClearPanelSettings has just emptied the stored keys, so the
 			// in-memory copy has to follow or the next enable would keep
 			// reusing the first capture instead of reading what the user has
-			// now.
-			sgtk.RunOnMainThread(func() {
-				uh.liveryState.SavedPanelIcon = ""
-				uh.liveryState.SavedPanelMode = ""
-			})
+			// now. Under --dry-run ClearPanelSettings is a no-op, so the
+			// stored keys are still what they were; mirroring that into the
+			// page's view of state would diverge from what was actually
+			// written, so skip the reset.
+			if !dryrun.Enabled() {
+				sgtk.RunOnMainThread(func() {
+					uh.liveryState.SavedPanelIcon = ""
+					uh.liveryState.SavedPanelMode = ""
+				})
+			}
 		}
 	}()
 }

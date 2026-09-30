@@ -146,3 +146,37 @@ func TestRollbackGateCompletesOnlyAfterLiveSuccess(t *testing.T) {
 		}
 	}
 }
+
+// Panel toggle mirrors the persisted SavedPanelIcon/SavedPanelMode into the
+// page's in-memory view of state. Under --dry-run the writes are no-ops, so
+// the mirror has to be skipped too — otherwise the next enable sees
+// non-empty saved values in memory and skips the capture the user asked
+// for. Issue #422.
+func TestLiveryPanelToggleDoesNotMutateInMemoryStateUnderDryRun(t *testing.T) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller could not locate wiring_test.go")
+	}
+	data, err := os.ReadFile(filepath.Join(filepath.Dir(filename), "..", "livery_actions.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	for _, required := range []string{
+		`import (`,
+		`"github.com/projectbluefin/chairlift/internal/dryrun"`,
+		`if enabled && surface == livery.Panel && savedIcon == "" && savedMode == "" {`,
+		`if err := livery.SetString(ctx, livery.KeySavedPanelIcon, icon); err != nil {`,
+		`if err := livery.SetString(ctx, livery.KeySavedPanelMode, mode); err != nil {`,
+		`if !dryrun.Enabled() {`,
+		`uh.liveryState.SavedPanelIcon = icon`,
+		`uh.liveryState.SavedPanelMode = mode`,
+		`if err := livery.ClearPanelSettings(ctx, savedIcon, savedMode); err != nil {`,
+		`uh.liveryState.SavedPanelIcon = ""`,
+		`uh.liveryState.SavedPanelMode = ""`,
+	} {
+		if !strings.Contains(text, required) {
+			t.Errorf("livery_actions.go wiring does not contain %q", required)
+		}
+	}
+}
