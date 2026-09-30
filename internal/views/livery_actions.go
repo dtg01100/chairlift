@@ -43,14 +43,18 @@ func (uh *UserHome) onLiveryAppGridToggled(enabled bool) {
 	// Under --dry-run livery.SetBool below is a no-op, so gsettings still
 	// records the previous value. Mutating the in-memory flag here would
 	// diverge from what was persisted and confuse the next comparison
-	// against the unchanged stored state — so skip the mirror and let the
-	// next refresh reconcile.
+	// against the unchanged stored state — so skip the mirror. We also
+	// leave the row at its prior sensitivity so the page reads the way it
+	// did before the click; a dry-run must not flip the visible state of
+	// any widget. (refreshLiveryState runs once at page build, not on
+	// every toggle, so there is no in-session reconciliation; the
+	// persisted value is the truth and the in-memory view is now
+	// aligned with it again the next time the page loads.)
 	if !dryrun.Enabled() {
 		uh.liveryState.AppGridEnabled = enabled
-	}
-
-	if uh.liveryAppGridRow != nil {
-		uh.liveryAppGridRow.SetSensitive(enabled)
+		if uh.liveryAppGridRow != nil {
+			uh.liveryAppGridRow.SetSensitive(enabled)
+		}
 	}
 
 	slug := uh.liveryState.AppGridSlug
@@ -157,10 +161,13 @@ func (uh *UserHome) onLiverySurfaceToggled(surface livery.Surface, enabled bool)
 	// records the previous value. Mirroring that into the page's view of
 	// state here would diverge from what was actually persisted and the
 	// next comparison would read the stale in-memory copy as the truth.
+	// We also leave the section's sub-rows at their prior sensitivity so
+	// the page reads the way it did before the click; a dry-run must not
+	// flip the visible state of any widget.
 	if !dryrun.Enabled() {
 		uh.setLiveryToggleState(surface, enabled)
+		uh.setLiverySectionSensitive(surface, enabled)
 	}
-	uh.setLiverySectionSensitive(surface, enabled)
 
 	source := uh.liverySource(surface)
 	savedIcon, savedMode := uh.liveryState.SavedPanelIcon, uh.liveryState.SavedPanelMode

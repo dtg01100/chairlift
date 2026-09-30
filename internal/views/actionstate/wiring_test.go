@@ -185,12 +185,19 @@ func TestLiveryToggleDoesNotMutateInMemoryStateUnderDryRun(t *testing.T) {
 	// gofmt keeps both blocks at the same indentation, so the snippets are
 	// matched verbatim: the gate has to sit immediately above the
 	// assignment, otherwise a regression that moves the assignment out from
-	// under its guard would still pass an `imports dryrun` check.
+	// under its guard would still pass an `imports dryrun` check. The
+	// app-grid guard also has to wrap the row's SetSensitive call and the
+	// surface guard has to wrap setLiverySectionSensitive — both are part
+	// of the visible-state advance under --dry-run (#424 follow-up).
 	appGridMirror := "\tif !dryrun.Enabled() {\n" +
 		"\t\tuh.liveryState.AppGridEnabled = enabled\n" +
+		"\t\tif uh.liveryAppGridRow != nil {\n" +
+		"\t\t\tuh.liveryAppGridRow.SetSensitive(enabled)\n" +
+		"\t\t}\n" +
 		"\t}\n"
 	surfaceMirror := "\tif !dryrun.Enabled() {\n" +
 		"\t\tuh.setLiveryToggleState(surface, enabled)\n" +
+		"\t\tuh.setLiverySectionSensitive(surface, enabled)\n" +
 		"\t}\n"
 	for name, snippet := range map[string]string{
 		"app-grid":   appGridMirror,
