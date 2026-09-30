@@ -240,6 +240,21 @@ func LiveryDockRow() Row {
 	}
 }
 
+// LiverySectionName is the display name of a section's master switch, used in
+// the dry-run preview toast its handler shows. It reads as the object of
+// "would be turned on", so it is a noun phrase rather than the row's
+// imperative title ("Customize the Panel Icon").
+func LiverySectionName(surface livery.Surface) string {
+	switch surface {
+	case livery.AppGrid:
+		return "the app grid icon"
+	case livery.Panel:
+		return "the panel icon"
+	default:
+		return "the Files icon"
+	}
+}
+
 // LiveryRotationRow is a section's rotation switch text.
 //
 // A source build gets a different subtitle, because the login unit it writes

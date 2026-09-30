@@ -46,7 +46,10 @@ Three rules, applied uniformly:
    from a single tested decision struct returned by
    `internal/views/actionmsg`: `ScriptDecision.Execute` (whether a custom
    maintenance script runs at all), `BundleInstallDecision.Complete`,
-   `TapTrustDecision.MutateUI`, and `FeatureToggleDecision.Confirm`. The
+   `TapTrustDecision.MutateUI`, `FeatureToggleDecision.Confirm`, and
+   `LiveryToggleDecision.MutateUI` (whether a Livery section's master switch
+   may advance the page's in-memory flag, its sub-rows' sensitivity, and the
+   switch position itself). The
    view computes `dryrun.Enabled()` exactly once, builds the decision, and
    branches solely on it for both the mutation and the toast; the caller
    must not independently recompute the condition. Actions with no second

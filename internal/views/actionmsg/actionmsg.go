@@ -27,9 +27,10 @@
 // or resets after a dry-run preview. TapTrust decides whether the Untrusted
 // Homebrew Taps view removes a row, changes group visibility, and refreshes.
 // FeatureToggle decides whether a feature switch confirms its new visual
-// state. Those latter three UI-side decisions have no wrapper-package
-// equivalent even though the wrappers already gate their underlying
-// command.
+// state. LiveryToggle decides whether a Livery section master switch may
+// advance the page's in-memory and on-screen state. Those latter UI-side
+// decisions have no wrapper-package equivalent even though the wrappers
+// already gate their underlying command.
 package actionmsg
 
 import "fmt"
@@ -283,6 +284,47 @@ func FeatureToggle(dryRun bool, enable bool, name string) FeatureToggleDecision 
 		Confirm: true,
 		Toast:   fmt.Sprintf("%s disabled. Update to apply, reboot to complete.", name),
 	}
+}
+
+// LiveryToggleDecision is the result of deciding whether flipping one of the
+// Livery page's section master switches (onLiveryAppGridToggled and
+// onLiverySurfaceToggled in internal/views/livery_actions.go) may advance the
+// page's own view of that section, and what toast to show for the decision.
+type LiveryToggleDecision struct {
+	// MutateUI is true when the new value was really persisted and the page
+	// may mirror it: advance the section's in-memory enabled flag, change
+	// its sub-rows' sensitivity, and leave the switch where the user put
+	// it. It is exactly !dryRun — under dry-run livery.SetBool returns
+	// before touching gsettings (internal/livery/settings.go), so the
+	// stored value never moved and the page must neither mirror nor display
+	// a change that did not happen. The caller must not independently
+	// recompute that condition: the same decision value drives the mirror,
+	// the switch restore in releaseLiveryToggle, and the toast below.
+	MutateUI bool
+	// Toast is the message to show once the section's work has finished. It
+	// is empty on a live run, where a successful section toggle is its own
+	// confirmation and the page has never shown a toast for one; only the
+	// preview needs words, because the switch visibly springs back.
+	Toast string
+}
+
+// LiveryToggle decides whether a Livery section master switch may advance the
+// page's visible and in-memory state, and supplies the preview toast when it
+// may not. MutateUI is exactly !dryRun. name is the section's display name
+// (pageview.LiverySectionName), never a livery.Surface value or a gsettings
+// key.
+func LiveryToggle(dryRun bool, enable bool, name string) LiveryToggleDecision {
+	if dryRun {
+		verb := "turned on"
+		if !enable {
+			verb = "turned off"
+		}
+		return LiveryToggleDecision{
+			MutateUI: false,
+			Toast:    fmt.Sprintf("[DRY-RUN] Preview: %s would be %s — no changes made", name, verb),
+		}
+	}
+	return LiveryToggleDecision{MutateUI: true}
 }
 
 // FeatureUpdate returns the toast text for the Features page's "Update"

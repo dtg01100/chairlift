@@ -147,19 +147,14 @@ func TestRollbackGateCompletesOnlyAfterLiveSuccess(t *testing.T) {
 	}
 }
 
-// Livery's three section toggles (app-grid, panel, dock) update the page's
-// in-memory view of state on the main thread, before the asynchronous
-// livery.SetBool call has landed. Under --dry-run those writes are no-ops,
-// so the in-memory mirror has to be skipped too — otherwise the page's
-// view of state diverges from what gsettings actually persisted. Issue #424.
-//
-// All three mutations need their own gate: the app-grid one inlines the
-// field name (liveryState.AppGridEnabled), while the panel and dock share
-// setLiveryToggleState. Matching each gate together with the assignment it
-// has to contain (rather than matching either alone) is what keeps a
-// regression from passing by dropping one of the three guards or moving an
-// assignment out from under its gate.
-func TestLiveryToggleDoesNotMutateInMemoryStateUnderDryRun(t *testing.T) {
+// TestLiveryToggleDerivesDryRunBehaviorFromOneDecision pins ADR-0009 rule 3
+// for the Livery page's section master switches: the dry-run flag is read
+// once per handler, turned into an actionmsg.LiveryToggleDecision, and that
+// one value drives the in-memory mirror, the sub-rows' sensitivity, the
+// switch restore in releaseLiveryToggle, and the preview toast. The page
+// builder itself cannot be imported on a headless host (ADR-0007), so the
+// wiring is asserted against the source text.
+func TestLiveryToggleDerivesDryRunBehaviorFromOneDecision(t *testing.T) {
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller could not locate wiring_test.go")
@@ -172,10 +167,13 @@ func TestLiveryToggleDoesNotMutateInMemoryStateUnderDryRun(t *testing.T) {
 	text := string(data)
 
 	for _, required := range []string{
-		`import (`,
 		`"github.com/projectbluefin/chairlift/internal/dryrun"`,
-		`uh.liveryState.AppGridEnabled = enabled`,
-		`uh.setLiveryToggleState(surface, enabled)`,
+		`"github.com/projectbluefin/chairlift/internal/views/actionmsg"`,
+		`actionmsg.LiveryToggle(dryrun.Enabled(), enabled, pageview.LiverySectionName(livery.AppGrid))`,
+		`actionmsg.LiveryToggle(dryrun.Enabled(), enabled, pageview.LiverySectionName(surface))`,
+		`defer uh.releaseLiveryToggle(livery.AppGrid, decision)`,
+		`defer uh.releaseLiveryToggle(surface, decision)`,
+		`func (uh *UserHome) releaseLiveryToggle(s livery.Surface, decision actionmsg.LiveryToggleDecision) {`,
 	} {
 		if !strings.Contains(text, required) {
 			t.Errorf("livery_actions.go wiring does not contain %q", required)
@@ -183,36 +181,47 @@ func TestLiveryToggleDoesNotMutateInMemoryStateUnderDryRun(t *testing.T) {
 	}
 
 	// gofmt keeps both blocks at the same indentation, so the snippets are
-	// matched verbatim: the gate has to sit immediately above the
+	// matched verbatim: the branch has to sit immediately above the
 	// assignment, otherwise a regression that moves the assignment out from
-	// under its guard would still pass an `imports dryrun` check. The
-	// app-grid guard also has to wrap the row's SetSensitive call and the
-	// surface guard has to wrap setLiverySectionSensitive — both are part
+	// under its guard would still pass a "builds a decision" check. The
+	// app-grid branch also has to wrap the row's SetSensitive call and the
+	// surface branch has to wrap setLiverySectionSensitive — both are part
 	// of the visible-state advance under --dry-run (#424 follow-up).
-	appGridMirror := "\tif !dryrun.Enabled() {\n" +
+	appGridMirror := "\tif decision.MutateUI {\n" +
 		"\t\tuh.liveryState.AppGridEnabled = enabled\n" +
 		"\t\tif uh.liveryAppGridRow != nil {\n" +
 		"\t\t\tuh.liveryAppGridRow.SetSensitive(enabled)\n" +
 		"\t\t}\n" +
 		"\t}\n"
-	surfaceMirror := "\tif !dryrun.Enabled() {\n" +
+	surfaceMirror := "\tif decision.MutateUI {\n" +
 		"\t\tuh.setLiveryToggleState(surface, enabled)\n" +
 		"\t\tuh.setLiverySectionSensitive(surface, enabled)\n" +
 		"\t}\n"
+	releaseRestore := "\t\tif !decision.MutateUI {\n" +
+		"\t\t\tuh.restoreLiveryToggleWidget(s, toggle)\n" +
+		"\t\t}\n"
+	previewToast := "\t\tif decision.Toast != \"\" {\n" +
+		"\t\t\tuh.toastAdder.ShowToast(decision.Toast)\n" +
+		"\t\t}\n"
 	for name, snippet := range map[string]string{
-		"app-grid":   appGridMirror,
-		"panel/dock": surfaceMirror,
+		"app-grid mirror":   appGridMirror,
+		"panel/dock mirror": surfaceMirror,
+		"switch restore":    releaseRestore,
+		"preview toast":     previewToast,
 	} {
 		if !strings.Contains(text, snippet) {
-			t.Errorf("livery_actions.go %s toggle does not guard the in-memory mirror with dryrun.Enabled(); expected the contiguous block:\n%s", name, snippet)
+			t.Errorf("livery_actions.go %s does not branch on the single LiveryToggleDecision; expected the contiguous block:\n%s", name, snippet)
 		}
 	}
 
-	// Guards the count as well as the shapes: two independent sections
-	// mutate the in-memory view of enabled state, so two gates have to be
-	// present. (The SavedPanelIcon/Mode guards from #423 are not counted
-	// here — they cover a different field and live in a separate change.)
-	if got := strings.Count(text, "if !dryrun.Enabled() {"); got < 2 {
-		t.Errorf("livery_actions.go has %d dry-run gates, want at least 2 (app-grid and panel/dock toggles)", got)
+	// ADR-0009 rule 3: the flag is read once per handler and nowhere else.
+	// A third read — the one releaseLiveryToggle used to make to decide
+	// whether to snap the switch back — is exactly the drift the decision
+	// struct exists to prevent, so the count is an upper bound, not a floor.
+	if got := strings.Count(text, "dryrun.Enabled()"); got != 2 {
+		t.Errorf("livery_actions.go reads dryrun.Enabled() %d times, want exactly 2 (one per toggle handler; every other site must derive from the decision)", got)
+	}
+	if strings.Contains(text, "if !dryrun.Enabled() {") || strings.Contains(text, "if dryrun.Enabled() {") {
+		t.Error("livery_actions.go still branches directly on dryrun.Enabled(); mutation and toast must both derive from actionmsg.LiveryToggle")
 	}
 }

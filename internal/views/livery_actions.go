@@ -6,6 +6,7 @@ import (
 
 	"github.com/projectbluefin/chairlift/internal/dryrun"
 	"github.com/projectbluefin/chairlift/internal/livery"
+	"github.com/projectbluefin/chairlift/internal/views/actionmsg"
 	"github.com/projectbluefin/chairlift/internal/views/actionstate"
 	"github.com/projectbluefin/chairlift/internal/views/pageview"
 
@@ -47,11 +48,15 @@ func (uh *UserHome) onLiveryAppGridToggled(enabled bool) {
 	// the row at its prior sensitivity so the page reads the way it did
 	// before the click. The switch itself is moved by GTK before this
 	// handler runs; releaseLiveryToggle puts it back to the persisted
-	// value once the preview has been logged, so nothing the user can see
-	// outlives a dry run. (refreshLiveryState runs once at page build, not
-	// on every toggle, so there is no in-session reconciliation; the
-	// persisted value is the truth.)
-	if !dryrun.Enabled() {
+	// value once the preview has been logged and says so in a toast, so
+	// nothing the user can see outlives a dry run. (refreshLiveryState runs
+	// once at page build, not on every toggle, so there is no in-session
+	// reconciliation; the persisted value is the truth.)
+	//
+	// ADR-0009 rule 3: the flag is read exactly once, here, and the mirror,
+	// the switch restore, and the toast all derive from this one decision.
+	decision := actionmsg.LiveryToggle(dryrun.Enabled(), enabled, pageview.LiverySectionName(livery.AppGrid))
+	if decision.MutateUI {
 		uh.liveryState.AppGridEnabled = enabled
 		if uh.liveryAppGridRow != nil {
 			uh.liveryAppGridRow.SetSensitive(enabled)
@@ -61,7 +66,7 @@ func (uh *UserHome) onLiveryAppGridToggled(enabled bool) {
 	slug := uh.liveryState.AppGridSlug
 	source := uh.liverySource(livery.AppGrid)
 	go func() {
-		defer uh.releaseLiveryToggle(livery.AppGrid)
+		defer uh.releaseLiveryToggle(livery.AppGrid, decision)
 
 		ctx, cancel := livery.DefaultContext()
 		defer cancel()
@@ -165,9 +170,13 @@ func (uh *UserHome) onLiverySurfaceToggled(surface livery.Surface, enabled bool)
 	// We also leave the section's sub-rows at their prior sensitivity so
 	// the page reads the way it did before the click. The switch itself is
 	// moved by GTK before this handler runs; releaseLiveryToggle puts it
-	// back to the persisted value once the preview has been logged, so
-	// nothing the user can see outlives a dry run.
-	if !dryrun.Enabled() {
+	// back to the persisted value once the preview has been logged and says
+	// so in a toast, so nothing the user can see outlives a dry run.
+	//
+	// ADR-0009 rule 3: the flag is read exactly once, here, and the mirror,
+	// the switch restore, and the toast all derive from this one decision.
+	decision := actionmsg.LiveryToggle(dryrun.Enabled(), enabled, pageview.LiverySectionName(surface))
+	if decision.MutateUI {
 		uh.setLiveryToggleState(surface, enabled)
 		uh.setLiverySectionSensitive(surface, enabled)
 	}
@@ -176,7 +185,7 @@ func (uh *UserHome) onLiverySurfaceToggled(surface livery.Surface, enabled bool)
 	savedIcon, savedMode := uh.liveryState.SavedPanelIcon, uh.liveryState.SavedPanelMode
 
 	go func() {
-		defer uh.releaseLiveryToggle(surface)
+		defer uh.releaseLiveryToggle(surface, decision)
 
 		ctx, cancel := livery.DefaultContext()
 		defer cancel()
@@ -526,21 +535,30 @@ func (uh *UserHome) runLiverySelectionWork(s livery.Surface, work func()) {
 
 // releaseLiveryToggle reopens a section's gate and its switch on the main
 // thread, so the widget touch happens where GTK requires it.
-func (uh *UserHome) releaseLiveryToggle(s livery.Surface) {
+//
+// decision is the one its handler already made (ADR-0009 rule 3): this
+// function must not recompute the preview flag for itself: the switch
+// restore and the preview toast have to agree with the in-memory mirror the
+// handler either did or did not apply.
+func (uh *UserHome) releaseLiveryToggle(s livery.Surface, decision actionmsg.LiveryToggleDecision) {
 	sgtk.RunOnMainThread(func() {
 		gate, toggle := uh.liveryToggleGate(s)
-		if dryrun.Enabled() {
+		if !decision.MutateUI {
 			uh.restoreLiveryToggleWidget(s, toggle)
 		}
 		gate.Reset()
 		if toggle != nil {
 			toggle.SetSensitive(true)
 		}
+		if decision.Toast != "" {
+			uh.toastAdder.ShowToast(decision.Toast)
+		}
 	})
 }
 
 // restoreLiveryToggleWidget puts a section's switch back to the value that is
-// actually persisted, and is called only under --dry-run.
+// actually persisted, and is called only when the section's
+// LiveryToggleDecision withheld the UI mutation — that is, under --dry-run.
 //
 // newSwitchRow's state-set handler returns false, so GTK commits the position
 // the user clicked to. Nothing was written, though, and the in-memory flag was

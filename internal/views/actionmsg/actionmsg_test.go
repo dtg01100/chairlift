@@ -614,3 +614,80 @@ func TestFeatureUpdate(t *testing.T) {
 		})
 	}
 }
+
+// TestLiveryToggle covers both dry-run states and both directions for a
+// Livery section master switch, asserting both the UI-mutation gate
+// (MutateUI) and the Toast text. MutateUI is the criterion that directly
+// proves the page neither mirrors nor displays a value livery.SetBool never
+// persisted: under dry-run that call returns before touching gsettings, so
+// the in-memory flag must stay put, the switch must spring back, and the
+// preview toast must say nothing changed. A live run carries no toast — a
+// section toggle has never announced itself when it really happened.
+func TestLiveryToggle(t *testing.T) {
+	tests := []struct {
+		name         string
+		dryRun       bool
+		enable       bool
+		section      string
+		wantMutateUI bool
+		wantToast    string
+		wantContains []string
+	}{
+		{
+			name:         "live enable mirrors the new state silently",
+			dryRun:       false,
+			enable:       true,
+			section:      "the panel icon",
+			wantMutateUI: true,
+			wantToast:    "",
+		},
+		{
+			name:         "live disable mirrors the new state silently",
+			dryRun:       false,
+			enable:       false,
+			section:      "the panel icon",
+			wantMutateUI: true,
+			wantToast:    "",
+		},
+		{
+			name:         "dry-run enable previews without mutating the page",
+			dryRun:       true,
+			enable:       true,
+			section:      "the app grid icon",
+			wantMutateUI: false,
+			wantContains: []string{"the app grid icon", "turned on", "no changes made"},
+		},
+		{
+			name:         "dry-run disable previews without mutating the page",
+			dryRun:       true,
+			enable:       false,
+			section:      "the Files icon",
+			wantMutateUI: false,
+			wantContains: []string{"the Files icon", "turned off", "no changes made"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := LiveryToggle(tt.dryRun, tt.enable, tt.section)
+
+			if got.MutateUI != !tt.dryRun {
+				t.Errorf("LiveryToggle(%v, %v, %q).MutateUI = %v, want %v", tt.dryRun, tt.enable, tt.section, got.MutateUI, !tt.dryRun)
+			}
+			if got.MutateUI != tt.wantMutateUI {
+				t.Errorf("LiveryToggle(%v, %v, %q).MutateUI = %v, want %v", tt.dryRun, tt.enable, tt.section, got.MutateUI, tt.wantMutateUI)
+			}
+			if !tt.dryRun && got.Toast != "" {
+				t.Errorf("LiveryToggle(%v, %v, %q).Toast = %q, want no toast on a live run", tt.dryRun, tt.enable, tt.section, got.Toast)
+			}
+			if tt.dryRun && !strings.HasPrefix(got.Toast, "[DRY-RUN] Preview:") {
+				t.Errorf("LiveryToggle(%v, %v, %q).Toast = %q, want it to begin with %q", tt.dryRun, tt.enable, tt.section, got.Toast, "[DRY-RUN] Preview:")
+			}
+			for _, want := range tt.wantContains {
+				if !strings.Contains(got.Toast, want) {
+					t.Errorf("LiveryToggle(%v, %v, %q).Toast = %q, want it to contain %q", tt.dryRun, tt.enable, tt.section, got.Toast, want)
+				}
+			}
+		})
+	}
+}

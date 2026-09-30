@@ -141,3 +141,23 @@ func TestNoResultsRowNamesTheCatalogItSearched(t *testing.T) {
 		}
 	}
 }
+
+// TestLiverySectionName covers every surface, because the name is the object
+// of "would be turned on" in the dry-run preview toast: a title that reads as
+// an instruction there would describe the wrong thing.
+func TestLiverySectionName(t *testing.T) {
+	tests := []struct {
+		surface livery.Surface
+		want    string
+	}{
+		{livery.AppGrid, "the app grid icon"},
+		{livery.Panel, "the panel icon"},
+		{livery.Dock, "the Files icon"},
+	}
+
+	for _, tt := range tests {
+		if got := LiverySectionName(tt.surface); got != tt.want {
+			t.Errorf("LiverySectionName(%v) = %q, want %q", tt.surface, got, tt.want)
+		}
+	}
+}
