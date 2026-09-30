@@ -43,13 +43,14 @@ func (uh *UserHome) onLiveryAppGridToggled(enabled bool) {
 	// Under --dry-run livery.SetBool below is a no-op, so gsettings still
 	// records the previous value. Mutating the in-memory flag here would
 	// diverge from what was persisted and confuse the next comparison
-	// against the unchanged stored state — so skip the mirror. We also
-	// leave the row at its prior sensitivity so the page reads the way it
-	// did before the click; a dry-run must not flip the visible state of
-	// any widget. (refreshLiveryState runs once at page build, not on
-	// every toggle, so there is no in-session reconciliation; the
-	// persisted value is the truth and the in-memory view is now
-	// aligned with it again the next time the page loads.)
+	// against the unchanged stored state — so skip the mirror, and leave
+	// the row at its prior sensitivity so the page reads the way it did
+	// before the click. The switch itself is moved by GTK before this
+	// handler runs; releaseLiveryToggle puts it back to the persisted
+	// value once the preview has been logged, so nothing the user can see
+	// outlives a dry run. (refreshLiveryState runs once at page build, not
+	// on every toggle, so there is no in-session reconciliation; the
+	// persisted value is the truth.)
 	if !dryrun.Enabled() {
 		uh.liveryState.AppGridEnabled = enabled
 		if uh.liveryAppGridRow != nil {
@@ -162,8 +163,10 @@ func (uh *UserHome) onLiverySurfaceToggled(surface livery.Surface, enabled bool)
 	// state here would diverge from what was actually persisted and the
 	// next comparison would read the stale in-memory copy as the truth.
 	// We also leave the section's sub-rows at their prior sensitivity so
-	// the page reads the way it did before the click; a dry-run must not
-	// flip the visible state of any widget.
+	// the page reads the way it did before the click. The switch itself is
+	// moved by GTK before this handler runs; releaseLiveryToggle puts it
+	// back to the persisted value once the preview has been logged, so
+	// nothing the user can see outlives a dry run.
 	if !dryrun.Enabled() {
 		uh.setLiveryToggleState(surface, enabled)
 		uh.setLiverySectionSensitive(surface, enabled)
@@ -526,11 +529,53 @@ func (uh *UserHome) runLiverySelectionWork(s livery.Surface, work func()) {
 func (uh *UserHome) releaseLiveryToggle(s livery.Surface) {
 	sgtk.RunOnMainThread(func() {
 		gate, toggle := uh.liveryToggleGate(s)
+		if dryrun.Enabled() {
+			uh.restoreLiveryToggleWidget(s, toggle)
+		}
 		gate.Reset()
 		if toggle != nil {
 			toggle.SetSensitive(true)
 		}
 	})
+}
+
+// restoreLiveryToggleWidget puts a section's switch back to the value that is
+// actually persisted, and is called only under --dry-run.
+//
+// newSwitchRow's state-set handler returns false, so GTK commits the position
+// the user clicked to. Nothing was written, though, and the in-memory flag was
+// deliberately left alone, so without this the page would show one value while
+// every handler compares against the other: flipping back would match the
+// unchanged state, return before livery.SetBool, and preview nothing. Moving
+// the widget back keeps the displayed value and the compared value the same,
+// so each click previews the change it describes.
+func (uh *UserHome) restoreLiveryToggleWidget(s livery.Surface, toggle *gtk.Switch) {
+	if toggle == nil {
+		return
+	}
+
+	persisted := uh.liveryToggleEnabled(s)
+	if toggle.GetActive() == persisted && toggle.GetState() == persisted {
+		return
+	}
+
+	// SetActive fires state-set again; suppress so the correction is not
+	// read as a user edit and re-entered as another preview.
+	suppressed := uh.liverySuppress
+	uh.liverySuppress = true
+	toggle.SetActive(persisted)
+	toggle.SetState(persisted)
+	uh.liverySuppress = suppressed
+}
+
+// liveryToggleEnabled reports the persisted master-switch value for a section,
+// including the app grid, whose flag liveryToggleState does not carry.
+func (uh *UserHome) liveryToggleEnabled(s livery.Surface) bool {
+	if s == livery.AppGrid {
+		return uh.liveryState.AppGridEnabled
+	}
+	enabled, _ := uh.liveryToggleState(s)
+	return enabled
 }
 
 func (uh *UserHome) liveryToggleState(s livery.Surface) (bool, string) {
