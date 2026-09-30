@@ -152,31 +152,64 @@ func TestRollbackGateCompletesOnlyAfterLiveSuccess(t *testing.T) {
 // the mirror has to be skipped too — otherwise the next enable sees
 // non-empty saved values in memory and skips the capture the user asked
 // for. Issue #422.
+//
+// Both the enable (capture) and the disable (reset) path need their own
+// gate, so the assertions below match each gate together with the
+// assignments it has to contain. Matching the gate line on its own would
+// still pass if one of the two gates were dropped, or if an assignment were
+// moved out from under its gate.
 func TestLiveryPanelToggleDoesNotMutateInMemoryStateUnderDryRun(t *testing.T) {
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller could not locate wiring_test.go")
 	}
-	data, err := os.ReadFile(filepath.Join(filepath.Dir(filename), "..", "livery_actions.go"))
+	path := filepath.Join(filepath.Dir(filename), "..", "livery_actions.go")
+	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("read %s: %v", path, err)
 	}
 	text := string(data)
+
 	for _, required := range []string{
 		`import (`,
 		`"github.com/projectbluefin/chairlift/internal/dryrun"`,
 		`if enabled && surface == livery.Panel && savedIcon == "" && savedMode == "" {`,
 		`if err := livery.SetString(ctx, livery.KeySavedPanelIcon, icon); err != nil {`,
 		`if err := livery.SetString(ctx, livery.KeySavedPanelMode, mode); err != nil {`,
-		`if !dryrun.Enabled() {`,
-		`uh.liveryState.SavedPanelIcon = icon`,
-		`uh.liveryState.SavedPanelMode = mode`,
 		`if err := livery.ClearPanelSettings(ctx, savedIcon, savedMode); err != nil {`,
-		`uh.liveryState.SavedPanelIcon = ""`,
-		`uh.liveryState.SavedPanelMode = ""`,
 	} {
 		if !strings.Contains(text, required) {
 			t.Errorf("livery_actions.go wiring does not contain %q", required)
 		}
+	}
+
+	// gofmt keeps both blocks at the same indentation, so the snippets are
+	// matched verbatim: the gate, the main-thread hop and the two
+	// assignments have to stay one contiguous block per path.
+	captureMirror := "\t\t\tif !dryrun.Enabled() {\n" +
+		"\t\t\t\tsgtk.RunOnMainThread(func() {\n" +
+		"\t\t\t\t\tuh.liveryState.SavedPanelIcon = icon\n" +
+		"\t\t\t\t\tuh.liveryState.SavedPanelMode = mode\n" +
+		"\t\t\t\t})\n" +
+		"\t\t\t}\n"
+	resetMirror := "\t\t\tif !dryrun.Enabled() {\n" +
+		"\t\t\t\tsgtk.RunOnMainThread(func() {\n" +
+		"\t\t\t\t\tuh.liveryState.SavedPanelIcon = \"\"\n" +
+		"\t\t\t\t\tuh.liveryState.SavedPanelMode = \"\"\n" +
+		"\t\t\t\t})\n" +
+		"\t\t\t}\n"
+	for name, snippet := range map[string]string{
+		"enable/capture": captureMirror,
+		"disable/reset":  resetMirror,
+	} {
+		if !strings.Contains(text, snippet) {
+			t.Errorf("livery_actions.go %s path does not guard the in-memory mirror with dryrun.Enabled(); expected the contiguous block:\n%s", name, snippet)
+		}
+	}
+
+	// Guards the count as well as the shapes: two independent paths mutate
+	// the mirror, so two gates have to be present.
+	if got := strings.Count(text, "if !dryrun.Enabled() {"); got < 2 {
+		t.Errorf("livery_actions.go has %d dry-run gates, want at least 2 (enable capture and disable reset)", got)
 	}
 }
