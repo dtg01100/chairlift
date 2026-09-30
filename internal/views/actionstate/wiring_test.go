@@ -146,3 +146,66 @@ func TestRollbackGateCompletesOnlyAfterLiveSuccess(t *testing.T) {
 		}
 	}
 }
+
+// Livery's three section toggles (app-grid, panel, dock) update the page's
+// in-memory view of state on the main thread, before the asynchronous
+// livery.SetBool call has landed. Under --dry-run those writes are no-ops,
+// so the in-memory mirror has to be skipped too — otherwise the page's
+// view of state diverges from what gsettings actually persisted. Issue #424.
+//
+// All three mutations need their own gate: the app-grid one inlines the
+// field name (liveryState.AppGridEnabled), while the panel and dock share
+// setLiveryToggleState. Matching each gate together with the assignment it
+// has to contain (rather than matching either alone) is what keeps a
+// regression from passing by dropping one of the three guards or moving an
+// assignment out from under its gate.
+func TestLiveryToggleDoesNotMutateInMemoryStateUnderDryRun(t *testing.T) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller could not locate wiring_test.go")
+	}
+	path := filepath.Join(filepath.Dir(filename), "..", "livery_actions.go")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	text := string(data)
+
+	for _, required := range []string{
+		`import (`,
+		`"github.com/projectbluefin/chairlift/internal/dryrun"`,
+		`uh.liveryState.AppGridEnabled = enabled`,
+		`uh.setLiveryToggleState(surface, enabled)`,
+	} {
+		if !strings.Contains(text, required) {
+			t.Errorf("livery_actions.go wiring does not contain %q", required)
+		}
+	}
+
+	// gofmt keeps both blocks at the same indentation, so the snippets are
+	// matched verbatim: the gate has to sit immediately above the
+	// assignment, otherwise a regression that moves the assignment out from
+	// under its guard would still pass an `imports dryrun` check.
+	appGridMirror := "\tif !dryrun.Enabled() {\n" +
+		"\t\tuh.liveryState.AppGridEnabled = enabled\n" +
+		"\t}\n"
+	surfaceMirror := "\tif !dryrun.Enabled() {\n" +
+		"\t\tuh.setLiveryToggleState(surface, enabled)\n" +
+		"\t}\n"
+	for name, snippet := range map[string]string{
+		"app-grid":   appGridMirror,
+		"panel/dock": surfaceMirror,
+	} {
+		if !strings.Contains(text, snippet) {
+			t.Errorf("livery_actions.go %s toggle does not guard the in-memory mirror with dryrun.Enabled(); expected the contiguous block:\n%s", name, snippet)
+		}
+	}
+
+	// Guards the count as well as the shapes: two independent sections
+	// mutate the in-memory view of enabled state, so two gates have to be
+	// present. (The SavedPanelIcon/Mode guards from #423 are not counted
+	// here — they cover a different field and live in a separate change.)
+	if got := strings.Count(text, "if !dryrun.Enabled() {"); got < 2 {
+		t.Errorf("livery_actions.go has %d dry-run gates, want at least 2 (app-grid and panel/dock toggles)", got)
+	}
+}

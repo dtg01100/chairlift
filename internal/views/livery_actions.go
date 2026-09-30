@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 
+	"github.com/projectbluefin/chairlift/internal/dryrun"
 	"github.com/projectbluefin/chairlift/internal/livery"
 	"github.com/projectbluefin/chairlift/internal/views/actionstate"
 	"github.com/projectbluefin/chairlift/internal/views/pageview"
@@ -39,7 +40,14 @@ func (uh *UserHome) onLiveryAppGridToggled(enabled bool) {
 	if uh.liveryAppGridSwitch != nil {
 		uh.liveryAppGridSwitch.SetSensitive(false)
 	}
-	uh.liveryState.AppGridEnabled = enabled
+	// Under --dry-run livery.SetBool below is a no-op, so gsettings still
+	// records the previous value. Mutating the in-memory flag here would
+	// diverge from what was persisted and confuse the next comparison
+	// against the unchanged stored state — so skip the mirror and let the
+	// next refresh reconcile.
+	if !dryrun.Enabled() {
+		uh.liveryState.AppGridEnabled = enabled
+	}
 
 	if uh.liveryAppGridRow != nil {
 		uh.liveryAppGridRow.SetSensitive(enabled)
@@ -145,7 +153,13 @@ func (uh *UserHome) onLiverySurfaceToggled(surface livery.Surface, enabled bool)
 		toggle.SetSensitive(false)
 	}
 
-	uh.setLiveryToggleState(surface, enabled)
+	// Under --dry-run livery.SetBool below is a no-op, so gsettings still
+	// records the previous value. Mirroring that into the page's view of
+	// state here would diverge from what was actually persisted and the
+	// next comparison would read the stale in-memory copy as the truth.
+	if !dryrun.Enabled() {
+		uh.setLiveryToggleState(surface, enabled)
+	}
 	uh.setLiverySectionSensitive(surface, enabled)
 
 	source := uh.liverySource(surface)
