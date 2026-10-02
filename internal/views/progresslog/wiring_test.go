@@ -118,15 +118,9 @@ func TestStagingTitlesAreNotPangoMarkup(t *testing.T) {
 // would otherwise have to re-check by eye is asserted here against the
 // source: two error strings reach row and expander subtitles, and AdwActionRow
 // and AdwExpanderRow parse subtitles as Pango markup by default, so the row
-// and the expander must render that error text literally.
-//
-// The twin finding for streamed stage/llmman output reaching row titles
-// (issue #435, PR #436) will land in this same source file once it
-// merges, enforced by TestStagingTitlesAreNotPangoMarkup. Both PRs append
-// to the end of this file and both edit updates_page.go, so whichever
-// merges second needs a rebase -- the conflict is bounded to the trailing
-// block of test functions. This test covers the two error subtitles the
-// reviewer of PR #436 flagged as the next out-of-scope finding.
+// and the expander must render that error text literally. The twin test for
+// streamed stage/llmman output reaching row titles lives in this same file
+// (TestStagingTitlesAreNotPangoMarkup).
 func TestErrorSubtitlesAreNotPangoMarkup(t *testing.T) {
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
