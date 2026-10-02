@@ -21,7 +21,7 @@ type sourceRow struct {
 	// deployment. Hidden in every other state so the row's resting shape
 	// never carries a control that cannot fire.
 	restartButton *gtk.Button
-	// restartVisible remembers whether the button is currently on screen so
+	// restartShown remembers whether the button is currently on screen so
 	// render() can hide or show it without re-parenting the suffix.
 	restartShown bool
 }

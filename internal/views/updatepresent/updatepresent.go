@@ -15,6 +15,19 @@ type Presentation struct {
 	ShowAction  bool
 	ActionStyle string
 	Banner      string
+	// Announcement is what a screen reader hears when the phase changes.
+	// It is empty for every phase whose Title already says it; only
+	// PhaseRestartRequired, which clears the panel, sets it on its own.
+	Announcement string
+}
+
+// Announce returns the text to announce on a phase change: the explicit
+// Announcement when the panel carries no title, the Title otherwise.
+func (p Presentation) Announce() string {
+	if p.Announcement != "" {
+		return p.Announcement
+	}
+	return p.Title
 }
 
 // Snapshot maps one coordinator snapshot to aggregate widget text and action
@@ -51,8 +64,9 @@ func Snapshot(state updateflow.Snapshot) Presentation {
 		// staged" with a "Restart now" suffix tells the user both halves of
 		// the story without a banner above the wordmark. The status page is
 		// left with empty text so the Bluefin logo leads straight into the
-		// "System updates" group.
-		return restartPresentation()
+		// "System updates" group, and the announcement repeats the row's
+		// subtitle so a screen reader still reports the pending reboot.
+		return Presentation{Announcement: gotext.Get("Deployment staged")}
 	default:
 		return Presentation{Title: gotext.Get("Checking for updates"),
 			Description: gotext.Get("Preparing to check for updates…")}
@@ -250,14 +264,6 @@ func partialFailureDescription(state updateflow.Snapshot) string {
 	return gotext.Get("%s; %s.", completed, failed)
 }
 
-// restartPresentation returns the empty status-panel text shown while a
-// deployment is staged. The status page above the wordmark keeps its
-// layout — title, description, primary button, progress bar — but every
-// field is empty so the row carries the message instead of the panel.
-func restartPresentation() Presentation {
-	return Presentation{}
-}
-
 func addAction(presentation *Presentation, action updateflow.Action, checkLabel string) {
 	switch action {
 	case updateflow.ActionCheck:
@@ -272,10 +278,9 @@ func addAction(presentation *Presentation, action updateflow.Action, checkLabel 
 		presentation.ActionLabel = gotext.Get("Retry failed")
 		presentation.ShowAction = true
 		presentation.ActionStyle = "suggested-action"
-	case updateflow.ActionRestart:
-		// The restart action now lives on the Operating system row, not on
-		// the page-level status panel; nothing here offers it.
 	}
+	// updateflow.ActionRestart is deliberately absent: the restart action
+	// lives on the Operating system row, so the primary never offers it.
 }
 
 func sourceTitle(id updateflow.SourceID) string {

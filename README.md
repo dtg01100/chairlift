@@ -72,8 +72,9 @@ The Updates page leads with the system's status — "System is up to date", or
 how many updates are waiting — above an **Update sources** list of the four
 things that can be updated: Applications, Developer tools, System components,
 and Operating system. One primary action covers all of them: **Check again**
-when nothing is pending, **Update all** when something is, **Retry failed**
-when a source did not finish, and **Restart now** once an OS image is staged.
+when nothing is pending, **Update all** when something is, and **Retry failed**
+when a source did not finish. Once an OS image is staged, the **Operating
+system** row carries its own **Restart now** suffix instead.
 A source that fails does not stop the others, and the restart prompt appears
 only when an image was actually staged, so a system that was already current
 never asks for a reboot.

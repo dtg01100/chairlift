@@ -396,14 +396,10 @@ func (s *UpdateShell) StartRestart() {
 	}()
 }
 
-// setRestartButtonSensitive toggles both the page-level primary and the
-// Operating system row's restart button. The row owns the action now
-// (#439), but the helper used to gate only the primary; keep them in lock
-// step so a failed or dry-run restart restores both at once.
+// setRestartButtonSensitive toggles the Operating system row's restart
+// button, the only control that starts a restart (#439). The page-level
+// primary never offers ActionRestart, so there is nothing else to gate.
 func (s *UpdateShell) setRestartButtonSensitive(sensitive bool) {
-	if s.primary != nil {
-		s.primary.SetSensitive(sensitive)
-	}
 	if row, ok := s.sourceRows[updateflow.OperatingSystem]; ok && row != nil {
 		row.setRestartButtonSensitive(sensitive)
 	}
@@ -493,7 +489,7 @@ func (s *UpdateShell) Render(snapshot updateflow.Snapshot) {
 		s.toasts.SetUpdateBadge(snapshot.TotalUpdates)
 	}
 	if !s.havePhase || s.lastPhase != snapshot.Phase {
-		s.statusPage.Announce(presentation.Title, gtk.AccessibleAnnouncementPriorityMediumValue)
+		s.statusPage.Announce(presentation.Announce(), gtk.AccessibleAnnouncementPriorityMediumValue)
 		s.lastPhase = snapshot.Phase
 		s.havePhase = true
 	}
@@ -587,13 +583,13 @@ func (s *UpdateShell) build() {
 	s.primary.AddCssClass("pill")
 	s.primary.SetVisible(false)
 	primaryClicked := func(_ gtk.Button) {
+		// ActionRestart is absent on purpose: the Operating system row owns
+		// the "Restart now" suffix, so the primary never starts a restart.
 		switch s.snapshot.Action {
 		case updateflow.ActionCheck:
 			s.StartCheck()
 		case updateflow.ActionUpdateAll, updateflow.ActionRetryFailed:
 			s.StartUpdate()
-		case updateflow.ActionRestart:
-			s.StartRestart()
 		}
 	}
 	s.primary.ConnectClicked(&primaryClicked)

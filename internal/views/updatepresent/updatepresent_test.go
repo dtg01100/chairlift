@@ -163,8 +163,10 @@ func TestSnapshotMapsAggregateStates(t *testing.T) {
 			},
 			// The restart state lives on the Operating system row, not on
 			// the page-level status panel; the panel clears so the wordmark
-			// leads straight into the "System updates" group.
-			want: Presentation{},
+			// leads straight into the "System updates" group. Only the
+			// announcement survives, so a screen reader still reports the
+			// pending reboot.
+			want: Presentation{Announcement: "Deployment staged"},
 		},
 	}
 
@@ -450,5 +452,33 @@ func TestSourceItemTitleUsesIdentityOnlyWhenNameIsMissing(t *testing.T) {
 	}
 	if got := ItemTitle(updateflow.Item{ID: "org.mozilla.firefox"}); got != "org.mozilla.firefox" {
 		t.Fatalf("nameless app title = %q, want its identity", got)
+	}
+}
+
+// A phase change announces to screen readers, so no phase may map to empty
+// announcement text. PhaseRestartRequired clears the status panel's title,
+// which would otherwise announce "" and leave a pending reboot silent.
+func TestEveryPhaseAnnouncesSomething(t *testing.T) {
+	for _, phase := range []updateflow.Phase{
+		updateflow.PhaseIdle,
+		updateflow.PhaseChecking,
+		updateflow.PhaseReady,
+		updateflow.PhaseCheckFailed,
+		updateflow.PhaseUpdating,
+		updateflow.PhasePartialFailure,
+		updateflow.PhaseRestartRequired,
+	} {
+		if got := Snapshot(updateflow.Snapshot{Phase: phase}).Announce(); got == "" {
+			t.Errorf("Snapshot(%v).Announce() is empty; a phase change would announce nothing", phase)
+		}
+	}
+}
+
+func TestAnnouncePrefersTitleWhenThePanelHasOne(t *testing.T) {
+	if got := (Presentation{Title: "Updates available"}).Announce(); got != "Updates available" {
+		t.Fatalf("Announce() = %q, want the title", got)
+	}
+	if got := (Presentation{Title: "Updates available", Announcement: "Deployment staged"}).Announce(); got != "Deployment staged" {
+		t.Fatalf("Announce() = %q, want the explicit announcement", got)
 	}
 }

@@ -328,8 +328,9 @@ func TestOperatingSystemRowOwnsRestartButton(t *testing.T) {
 
 // The page-level status panel clears when a deployment is staged (#439);
 // the row carries the message instead of the status page. updatepresent's
-// restart case must return an empty Presentation so the wordmark leads into
-// the source groups without a banner.
+// restart case must leave the panel's title, description, and banner empty
+// so the wordmark leads into the source groups, keeping only the
+// announcement a screen reader needs.
 func TestPhaseRestartRequiredClearsStatusPanel(t *testing.T) {
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
