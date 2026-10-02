@@ -110,3 +110,52 @@ func TestStagingTitlesAreNotPangoMarkup(t *testing.T) {
 		t.Error("updates_page.go renders streamed command output as the activity row subtitle without SetUseMarkup(false): it is parsed as Pango markup (issue #435)")
 	}
 }
+
+// TestErrorSubtitlesAreNotPangoMarkup is the CI-enforced half of the fix for
+// issue #437. internal/views cannot host a test binary (puregotk panics
+// resolving GTK and graphene at package init —
+// docs/skills/gtk-headless-testing/SKILL.md), so the behavior a reviewer
+// would otherwise have to re-check by eye is asserted here against the
+// source: two error strings reach row and expander subtitles, and AdwActionRow
+// and AdwExpanderRow parse subtitles as Pango markup by default, so the row
+// and the expander must render that error text literally.
+//
+// The twin finding for streamed stage/llmman output reaching row titles
+// (issue #435, PR #436) lives in this same source file and is enforced by
+// TestStagingTitlesAreNotPangoMarkup; this test covers the two error
+// subtitles the reviewer of PR #436 flagged as the next out-of-scope finding.
+func TestErrorSubtitlesAreNotPangoMarkup(t *testing.T) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller could not locate wiring_test.go")
+	}
+	path := filepath.Join(filepath.Clean(filepath.Join(filepath.Dir(filename), "..")), "updates_page.go")
+
+	source, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	text := string(source)
+
+	// loadUntrustedTaps feeds err.Error() into an AdwActionRow subtitle when
+	// listing untrusted taps fails. The error string comes from the homebrew
+	// invocation, so a '<' or '&' would garble the row with a GTK warning
+	// unless the row disables Pango parsing before its subtitle is set.
+	if !strings.Contains(text, "row.SetSubtitle(err.Error())") {
+		t.Error("updates_page.go no longer sets err.Error() as a row subtitle: the markup assertion below no longer covers the untrusted-tap error text (issue #437)")
+	}
+	if !strings.Contains(text, "row.SetUseMarkup(false)") {
+		t.Error("updates_page.go renders the untrusted-tap error as a row subtitle without SetUseMarkup(false): it is parsed as Pango markup (issue #437)")
+	}
+
+	// onBootcStageClicked feeds a wrapped statusErr into the bootc stage
+	// expander subtitle when reading status after a stage fails. The error
+	// string is whatever bootc.GetStatus returned, so the expander must
+	// render it literally rather than parse it as Pango markup.
+	if !strings.Contains(text, `message := fmt.Sprintf("Could not verify staged update: %v", statusErr)`) {
+		t.Error("updates_page.go no longer wraps statusErr into the stage expander subtitle: the markup assertion below no longer covers that error text (issue #437)")
+	}
+	if !strings.Contains(text, "uh.bootcStageExpander.SetUseMarkup(false)") {
+		t.Error("updates_page.go renders the wrapped statusErr as the stage expander subtitle without SetUseMarkup(false): it is parsed as Pango markup (issue #437)")
+	}
+}

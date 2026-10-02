@@ -55,6 +55,12 @@ func (uh *UserHome) buildUpdatesPage() {
 		group.SetVisible(false)
 
 		uh.bootcStageExpander = adw.NewExpanderRow()
+		// Subtitles include the wrapped bootc error from a failed stage
+		// (statusErr at onBootcStageClicked) and the version reported by
+		// BootcUpdateSubtitle. AdwExpanderRow parses its subtitle as
+		// Pango markup by default, so a '<' or '&' would garble the row
+		// with a GTK warning (issue #437).
+		uh.bootcStageExpander.SetUseMarkup(false)
 		uh.bootcStageExpander.SetTitle("Download system update")
 		uh.bootcStageExpander.SetSubtitle("Checking…")
 
@@ -115,6 +121,11 @@ func (uh *UserHome) loadUntrustedTaps() {
 		uh.trustButtons.clear()
 		if err != nil {
 			row := adw.NewActionRow()
+			// err.Error() is the message returned by the untrusted-tap
+			// check; AdwActionRow parses a subtitle as Pango markup by
+			// default, so a '<' or '&' in that text would garble or drop
+			// the row with a GTK warning (issue #437).
+			row.SetUseMarkup(false)
 			row.SetTitle("Could not check software sources")
 			row.SetSubtitle(err.Error())
 			button := gtk.NewButtonWithLabel("Retry")
