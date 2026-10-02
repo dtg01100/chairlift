@@ -121,9 +121,12 @@ func TestStagingTitlesAreNotPangoMarkup(t *testing.T) {
 // and the expander must render that error text literally.
 //
 // The twin finding for streamed stage/llmman output reaching row titles
-// (issue #435, PR #436) lives in this same source file and is enforced by
-// TestStagingTitlesAreNotPangoMarkup; this test covers the two error
-// subtitles the reviewer of PR #436 flagged as the next out-of-scope finding.
+// (issue #435, PR #436) will land in this same source file once it
+// merges, enforced by TestStagingTitlesAreNotPangoMarkup. Both PRs append
+// to the end of this file and both edit updates_page.go, so whichever
+// merges second needs a rebase -- the conflict is bounded to the trailing
+// block of test functions. This test covers the two error subtitles the
+// reviewer of PR #436 flagged as the next out-of-scope finding.
 func TestErrorSubtitlesAreNotPangoMarkup(t *testing.T) {
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
