@@ -359,9 +359,7 @@ func (s *UpdateShell) StartRestart() {
 	// Render recomputes the button from shell state, so the flag — not just the
 	// widget call — is what keeps it disabled across snapshots (issue #447).
 	s.restartInFlight.Store(true)
-	if s.primary != nil {
-		s.primary.SetSensitive(false)
-	}
+	s.setRestartButtonSensitive(false)
 	go func() {
 		ctx, cancel := ublue.DefaultContext()
 		defer cancel()
@@ -371,9 +369,7 @@ func (s *UpdateShell) StartRestart() {
 		if !ublue.StatusCached().Supports(ubluehelper.CommandRestart) {
 			sgtk.RunOnMainThread(func() {
 				s.restartInFlight.Store(false)
-				if s.primary != nil {
-					s.primary.SetSensitive(true)
-				}
+				s.setRestartButtonSensitive(true)
 				if s.toasts != nil {
 					s.toasts.ShowToast("Restart your computer to finish the update")
 				}
@@ -385,9 +381,7 @@ func (s *UpdateShell) StartRestart() {
 
 		sgtk.RunOnMainThread(func() {
 			s.restartInFlight.Store(false)
-			if s.primary != nil {
-				s.primary.SetSensitive(true)
-			}
+			s.setRestartButtonSensitive(true)
 			if s.toasts == nil {
 				return
 			}
@@ -400,6 +394,19 @@ func (s *UpdateShell) StartRestart() {
 			}
 		})
 	}()
+}
+
+// setRestartButtonSensitive toggles both the page-level primary and the
+// Operating system row's restart button. The row owns the action now
+// (#439), but the helper used to gate only the primary; keep them in lock
+// step so a failed or dry-run restart restores both at once.
+func (s *UpdateShell) setRestartButtonSensitive(sensitive bool) {
+	if s.primary != nil {
+		s.primary.SetSensitive(sensitive)
+	}
+	if row, ok := s.sourceRows[updateflow.OperatingSystem]; ok && row != nil {
+		row.setRestartButtonSensitive(sensitive)
+	}
 }
 
 // notifyUpdateComplete sends the single desktop notification ChairLift

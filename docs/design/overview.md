@@ -1471,12 +1471,14 @@ previewed helper call would request the opposite change.
 Restart is the run's only privileged surface of its own. `PhaseRestartRequired`
 is reached only when a source reports that a restart is required — the OS
 provider reads it from `bootc status`'s staged deployment, because the stage
-script is idempotent and exits 0 on an already-current system — and
-`updatepresent` renders `ActionRestart` as "Restart now", which
-`UpdateShell.StartRestart` sends through `ublue.Restart` to the
-`chairlift-helper` `restart` subcommand. Its argv is the fixed
-`systemctl reboot` (`ubluehelper.RestartArgs`) with no delay and no target;
-scheduled restarts would each need their own action.
+script is idempotent and exits 0 on an already-current system — and the
+status panel clears its title, description, banner, and primary button so
+the wordmark leads straight into the "System updates" group. The Operating
+system row carries the message instead: its subtitle reads "Deployment
+staged" and a "Restart now" suffix calls `UpdateShell.StartRestart`, which
+sends `ublue.Restart` through the `chairlift-helper` `restart` subcommand.
+Its argv is the fixed `systemctl reboot` (`ubluehelper.RestartArgs`) with no
+delay and no target; scheduled restarts would each need their own action.
 
 After a live run, `UserHome.OnUpdateFinished` reloads the Flatpak and
 Homebrew inventories and, when the operating system completed, re-reads bootc

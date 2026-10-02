@@ -27,6 +27,9 @@ def text_present(root, wanted, exact=False):
 
 # Every title updatepresent.Snapshot can give the status page. Exactly one is
 # on screen at a time, so asserting one also asserts no stale phase remains.
+# A staged deployment no longer titles the status panel (#439) — the
+# Operating system row carries the message — so "Restart required" is not
+# a phase title here; "Deployment staged" lives on that row.
 PHASE_TITLES = (
     "Checking for updates",
     "Updates available",
@@ -34,11 +37,10 @@ PHASE_TITLES = (
     "Unable to check for updates",
     "Installing updates",
     "Some updates could not be installed",
-    "Restart required",
 )
 
 # Every label updatepresent gives the primary action.
-PRIMARY_LABELS = ("Check again", "Update all", "Try again", "Retry failed", "Restart now")
+PRIMARY_LABELS = ("Check again", "Update all", "Try again", "Retry failed")
 
 
 def _shown_phase_titles(context):

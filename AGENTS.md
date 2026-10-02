@@ -252,9 +252,12 @@ An agent must not break these:
   staging-ownership invariant below and the fixed-path contract an OS image
   relies on when it installs the helpers. The run's only privileged surface of its own is
   `restart`: `updateflow.ActionRestart` is set when the snapshot reaches
-  `PhaseRestartRequired`, `updatepresent` renders it as a destructive
-  "Restart now" button, and `UpdateShell.StartRestart` calls `ublue.Restart`.
-  That phase is reached only when a source genuinely reports a restart is
+  `PhaseRestartRequired`. The status panel clears its title, description,
+  banner, and primary button so the wordmark leads straight into the
+  "System updates" group; the Operating system row carries the message
+  instead, with a "Deployment staged" subtitle and a "Restart now" suffix
+  that calls `UpdateShell.StartRestart` and in turn `ublue.Restart`. That
+  phase is reached only when a source genuinely reports a restart is
   required — the stage script is idempotent and exits 0 on an already-current
   system, so a successful OS source is not by itself evidence anything
   changed.

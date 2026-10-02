@@ -46,11 +46,13 @@ func Snapshot(state updateflow.Snapshot) Presentation {
 		addAction(&presentation, state.Action, gotext.Get("Retry failed"))
 		return presentation
 	case updateflow.PhaseRestartRequired:
-		presentation := Presentation{Title: gotext.Get("Restart required"),
-			Description: gotext.Get("Restart to finish installing updates."),
-			Banner:      gotext.Get("Restart required")}
-		addAction(&presentation, state.Action, gotext.Get("Restart now"))
-		return presentation
+		// The restart action lives on the Operating system row, not on the
+		// page-level status panel: an in-progress row that says "Deployment
+		// staged" with a "Restart now" suffix tells the user both halves of
+		// the story without a banner above the wordmark. The status page is
+		// left with empty text so the Bluefin logo leads straight into the
+		// "System updates" group.
+		return restartPresentation()
 	default:
 		return Presentation{Title: gotext.Get("Checking for updates"),
 			Description: gotext.Get("Preparing to check for updates…")}
@@ -77,7 +79,7 @@ func Source(state updateflow.SourceState) (title, subtitle string) {
 	case state.CheckErr != nil:
 		return title, gotext.Get("Check failed: %s", state.CheckErr.Error())
 	case state.RestartRequired:
-		return title, gotext.Get("Restart required")
+		return title, gotext.Get("Deployment staged")
 	case len(state.Items) > 0:
 		return title, gotext.GetN("%d update available", "%d updates available", len(state.Items), len(state.Items))
 	case state.Completed:
@@ -248,6 +250,14 @@ func partialFailureDescription(state updateflow.Snapshot) string {
 	return gotext.Get("%s; %s.", completed, failed)
 }
 
+// restartPresentation returns the empty status-panel text shown while a
+// deployment is staged. The status page above the wordmark keeps its
+// layout — title, description, primary button, progress bar — but every
+// field is empty so the row carries the message instead of the panel.
+func restartPresentation() Presentation {
+	return Presentation{}
+}
+
 func addAction(presentation *Presentation, action updateflow.Action, checkLabel string) {
 	switch action {
 	case updateflow.ActionCheck:
@@ -263,11 +273,8 @@ func addAction(presentation *Presentation, action updateflow.Action, checkLabel 
 		presentation.ShowAction = true
 		presentation.ActionStyle = "suggested-action"
 	case updateflow.ActionRestart:
-		presentation.ActionLabel = gotext.Get("Restart now")
-		presentation.ShowAction = true
-		// Destructive rather than suggested: this ends the user's session
-		// and closes whatever they have open.
-		presentation.ActionStyle = "destructive-action"
+		// The restart action now lives on the Operating system row, not on
+		// the page-level status panel; nothing here offers it.
 	}
 }
 

@@ -161,9 +161,10 @@ func TestSnapshotMapsAggregateStates(t *testing.T) {
 					},
 				},
 			},
-			want: Presentation{Title: "Restart required",
-				Description: "Restart to finish installing updates.",
-				Banner:      "Restart required"},
+			// The restart state lives on the Operating system row, not on
+			// the page-level status panel; the panel clears so the wordmark
+			// leads straight into the "System updates" group.
+			want: Presentation{},
 		},
 	}
 
@@ -258,7 +259,7 @@ func TestSourceMapsSourceState(t *testing.T) {
 				RestartRequired: true,
 			},
 			title: "Operating system",
-			sub:   "Restart required",
+			sub:   "Deployment staged",
 		},
 		{
 			name: "check error",

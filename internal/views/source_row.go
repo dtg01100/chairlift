@@ -16,6 +16,14 @@ type sourceRow struct {
 	buttons     []*gtk.Button
 	items       []updateflow.Item
 	enabled     bool
+	// restartButton is the "Restart now" suffix on the Operating system row,
+	// created once and shown only when the OS source reports a staged
+	// deployment. Hidden in every other state so the row's resting shape
+	// never carries a control that cannot fire.
+	restartButton *gtk.Button
+	// restartVisible remembers whether the button is currently on screen so
+	// render() can hide or show it without re-parenting the suffix.
+	restartShown bool
 }
 
 func newSourceRow(state updateflow.SourceState, group *adw.PreferencesGroup, shell *UpdateShell) *sourceRow {
@@ -36,6 +44,22 @@ func newSourceRow(state updateflow.SourceState, group *adw.PreferencesGroup, she
 		button.SetSensitive(updatepresent.CanStartOperation(shell.Busy(), shell.closed.Load()) && !updatepresent.ShowProgress(shell.snapshot.Phase))
 		shell.updateButtons.connect(button, func(gtk.Button) { shell.startToolRefresh() })
 		r.row.AddSuffix(&button.Widget)
+		r.buttons = append(r.buttons, button)
+	}
+	if state.ID == updateflow.OperatingSystem {
+		// The Operating system row owns its restart control. The button is
+		// created once at build time — its callback identity is a single
+		// shared trampoline from updateButtons, so reloads do not leak
+		// slots — and render() decides whether it is currently on screen.
+		button := gtk.NewButtonWithLabel("Restart now")
+		button.SetValign(gtk.AlignCenterValue)
+		button.SetTooltipText("Restart to finish installing the staged update")
+		button.SetVisible(state.RestartRequired)
+		button.SetSensitive(updatepresent.CanStartOperation(shell.Busy(), shell.closed.Load()) && !updatepresent.ShowProgress(shell.snapshot.Phase))
+		shell.updateButtons.connect(button, func(gtk.Button) { shell.StartRestart() })
+		r.row.AddSuffix(&button.Widget)
+		r.restartButton = button
+		r.restartShown = state.RestartRequired
 		r.buttons = append(r.buttons, button)
 	}
 	for _, item := range state.Items {
@@ -66,12 +90,31 @@ func (r *sourceRow) render(state updateflow.SourceState, sensitive bool) {
 	for index, row := range r.detailRows {
 		row.SetSubtitle(updatepresent.ItemSubtitle(r.items[index]))
 	}
+	if r.restartButton != nil {
+		// The button is parented once at build time; show or hide it
+		// instead of re-parenting, so the row's suffix set is stable and
+		// the puregotk trampoline keeps the same address.
+		if state.RestartRequired != r.restartShown {
+			r.restartButton.SetVisible(state.RestartRequired)
+			r.restartShown = state.RestartRequired
+		}
+	}
 	r.setSensitive(sensitive)
 }
 
 func (r *sourceRow) setSensitive(sensitive bool) {
 	for _, button := range r.buttons {
 		button.SetSensitive(sensitive)
+	}
+}
+
+// setRestartButtonSensitive toggles only the "Restart now" suffix. The
+// shell calls it from StartRestart — the row owns the action now (#439) —
+// while setSensitive continues to gate every suffix at once during a
+// mutation, so a running update run cannot fire restart from either place.
+func (r *sourceRow) setRestartButtonSensitive(sensitive bool) {
+	if r.restartButton != nil {
+		r.restartButton.SetSensitive(sensitive)
 	}
 }
 

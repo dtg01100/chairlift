@@ -297,3 +297,63 @@ func TestChangelogRefreshDiscardsOldImagePair(t *testing.T) {
 		t.Error("in-flight comparison can render a diff for an image no longer staged")
 	}
 }
+
+// The OS source row owns the restart action now (#439): the source row
+// builds a "Restart now" suffix on the Operating system source and toggles
+// its visibility as RestartRequired changes, so the page-level status
+// panel does not carry the restart state.
+func TestOperatingSystemRowOwnsRestartButton(t *testing.T) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller could not locate wiring_test.go")
+	}
+	source, err := os.ReadFile(filepath.Join(filepath.Dir(filename), "..", "source_row.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(source)
+	for _, fragment := range []string{
+		`state.ID == updateflow.OperatingSystem`,
+		`"Restart now"`,
+		`SetVisible(state.RestartRequired)`,
+		`state.RestartRequired != r.restartShown`,
+		`shell.StartRestart()`,
+		`setRestartButtonSensitive`,
+	} {
+		if !strings.Contains(text, fragment) {
+			t.Errorf("source_row.go no longer wires the Operating system row's Restart now button: %q", fragment)
+		}
+	}
+}
+
+// The page-level status panel clears when a deployment is staged (#439);
+// the row carries the message instead of the status page. updatepresent's
+// restart case must return an empty Presentation so the wordmark leads into
+// the source groups without a banner.
+func TestPhaseRestartRequiredClearsStatusPanel(t *testing.T) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller could not locate wiring_test.go")
+	}
+	source, err := os.ReadFile(filepath.Join(filepath.Dir(filename), "..", "updatepresent", "updatepresent.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(source)
+	if !strings.Contains(text, "case updateflow.PhaseRestartRequired:") {
+		t.Fatal("PhaseRestartRequired case missing from updatepresent")
+	}
+	// The restart case must not advertise a title, description, or banner
+	// above the wordmark; if any of these strings return the OS row carries
+	// the message and the panel stays blank.
+	for _, banned := range []string{
+		`Title: gotext.Get("Restart required")`,
+		`Description: gotext.Get("Restart to finish installing updates.")`,
+		`Banner:      gotext.Get("Restart required")`,
+		`ActionStyle = "destructive-action"`,
+	} {
+		if strings.Contains(text, banned) {
+			t.Errorf("PhaseRestartRequired still renders %q in the status panel", banned)
+		}
+	}
+}
