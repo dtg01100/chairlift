@@ -254,8 +254,10 @@ func (s *UpdateShell) beginMutation() bool {
 	}
 	s.operationMu.Lock()
 	defer s.operationMu.Unlock()
+	// A pending restart owns the system until pkexec resolves; refuse any
+	// mutation (Update all, per-row updates) started in that window.
 	if s.coordinator == nil || !updatepresent.CanStartOperation(s.Busy(), s.closed.Load()) ||
-		!s.sourcesReady || updatepresent.ShowProgress(s.snapshot.Phase) || !s.mutation.CompareAndSwap(false, true) {
+		s.restartInFlight.Load() || !s.sourcesReady || updatepresent.ShowProgress(s.snapshot.Phase) || !s.mutation.CompareAndSwap(false, true) {
 		return false
 	}
 	s.primary.SetSensitive(false)
@@ -370,6 +372,7 @@ func (s *UpdateShell) StartRestart() {
 	// widget call — is what keeps it disabled across snapshots (issue #447).
 	s.restartInFlight.Store(true)
 	s.setRestartButtonSensitive(false)
+	s.renderRestartGatedActions()
 	go func() {
 		ctx, cancel := ublue.DefaultContext()
 		defer cancel()
@@ -384,6 +387,7 @@ func (s *UpdateShell) StartRestart() {
 				// unconditionally re-enabled while a check or mutation
 				// is still in flight (#446 review).
 				s.renderSources(s.snapshot.Sources)
+				s.renderRestartGatedActions()
 				if s.toasts != nil {
 					s.toasts.ShowToast("Restart your computer to finish the update")
 				}
@@ -400,6 +404,7 @@ func (s *UpdateShell) StartRestart() {
 			// while a check is running cannot re-enable a second press
 			// before the next snapshot's render() (#446 review).
 			s.renderSources(s.snapshot.Sources)
+			s.renderRestartGatedActions()
 			if s.toasts == nil {
 				return
 			}
@@ -414,9 +419,21 @@ func (s *UpdateShell) StartRestart() {
 	}()
 }
 
+// renderRestartGatedActions re-applies the page-level primary action's
+// sensitivity at each restartInFlight transition. renderPrimaryAction is the
+// only consumer of PrimaryActionEnabled's restartInFlight gate, so without
+// this Update all stays pressable while pkexec is pending, or stays disabled
+// after a failed restart until the next snapshot.
+func (s *UpdateShell) renderRestartGatedActions() {
+	if s.closed.Load() {
+		return
+	}
+	s.renderPrimaryAction(updatepresent.Snapshot(s.snapshot))
+}
+
 // setRestartButtonSensitive toggles the Operating system row's restart
 // button, the only control that starts a restart (#439). The page-level
-// primary never offers a restart, so there is nothing else to gate.
+// primary never offers a restart; it is gated via renderRestartGatedActions.
 func (s *UpdateShell) setRestartButtonSensitive(sensitive bool) {
 	if row, ok := s.sourceRows[updateflow.OperatingSystem]; ok && row != nil {
 		row.setRestartButtonSensitive(sensitive)
