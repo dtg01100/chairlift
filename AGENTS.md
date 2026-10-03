@@ -251,8 +251,9 @@ An agent must not break these:
   `bootc upgrade` route to `chairlift-helper` would break both the
   staging-ownership invariant below and the fixed-path contract an OS image
   relies on when it installs the helpers. The run's only privileged surface of its own is
-  `restart`: `updateflow.ActionRestart` is set when the snapshot reaches
-  `PhaseRestartRequired`. The empty status panel is hidden through
+  `restart`, offered only from the Operating system row once the snapshot
+  reaches `PhaseRestartRequired` (whose page-level action is
+  `updateflow.ActionNone`). The empty status panel is hidden through
   `updatepresent.Presentation.ShowStatus`, not merely cleared, so its padding
   does not separate the wordmark from "System updates". Phase announcements
   come from the shell's visible toast overlay, never the hidden status page.

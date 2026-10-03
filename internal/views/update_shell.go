@@ -416,7 +416,7 @@ func (s *UpdateShell) StartRestart() {
 
 // setRestartButtonSensitive toggles the Operating system row's restart
 // button, the only control that starts a restart (#439). The page-level
-// primary never offers ActionRestart, so there is nothing else to gate.
+// primary never offers a restart, so there is nothing else to gate.
 func (s *UpdateShell) setRestartButtonSensitive(sensitive bool) {
 	if row, ok := s.sourceRows[updateflow.OperatingSystem]; ok && row != nil {
 		row.setRestartButtonSensitive(sensitive)
@@ -602,8 +602,8 @@ func (s *UpdateShell) build() {
 	s.primary.AddCssClass("pill")
 	s.primary.SetVisible(false)
 	primaryClicked := func(_ gtk.Button) {
-		// ActionRestart is absent on purpose: the Operating system row owns
-		// the "Restart now" suffix, so the primary never starts a restart.
+		// The primary never starts a restart: the Operating system row owns
+		// the "Restart now" suffix (#439).
 		switch s.snapshot.Action {
 		case updateflow.ActionCheck:
 			s.StartCheck()
