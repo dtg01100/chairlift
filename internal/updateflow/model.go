@@ -39,9 +39,14 @@ const (
 	ActionCheck
 	ActionUpdateAll
 	ActionRetryFailed
-	// ActionRestart is offered when an update is staged and only a restart
-	// can finish it. Without it PhaseRestartRequired renders a status that
-	// tells the user to restart and gives them nothing to press.
+	// ActionRestart is retained as the nominal action for
+	// PhaseRestartRequired so the coordinator's state still names what
+	// the phase does, but the Operating system row owns the actual
+	// "Restart now" button (see SourceRow.restartShown / RestartClicked)
+	// and the primary never offers it; addAction drops the case in
+	// internal/views/updatepresent/updatepresent.go. The phase's
+	// restart-required cue therefore surfaces as a row suffix, with
+	// the action kept for state and tests rather than for rendering.
 	ActionRestart
 )
 
