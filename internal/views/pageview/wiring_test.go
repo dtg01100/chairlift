@@ -321,7 +321,6 @@ func TestOperatingSystemRowOwnsRestartButton(t *testing.T) {
 		`setRestartButtonSensitive`,
 		`!shell.restartInFlight.Load()`,
 		`if r.restartButton != nil && restartInFlight`,
-
 	} {
 		if !strings.Contains(text, fragment) {
 			t.Errorf("source_row.go no longer wires the Operating system row's Restart now button: %q", fragment)
