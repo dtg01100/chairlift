@@ -722,7 +722,7 @@ func (s *UpdateShell) renderSources(states []updateflow.SourceState) {
 	}
 	if !rebuild {
 		for _, state := range states {
-			s.sourceRows[state.ID].render(state, !s.Busy() && !updatepresent.ShowProgress(s.snapshot.Phase))
+			s.sourceRows[state.ID].render(state, !s.Busy() && !updatepresent.ShowProgress(s.snapshot.Phase), s.restartInFlight.Load())
 		}
 		return
 	}

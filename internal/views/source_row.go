@@ -41,7 +41,7 @@ func newSourceRow(state updateflow.SourceState, group *adw.PreferencesGroup, she
 		button := gtk.NewButtonWithLabel("Check")
 		button.SetValign(gtk.AlignCenterValue)
 		button.SetTooltipText("Check for new tool versions")
-		button.SetSensitive(updatepresent.CanStartOperation(shell.Busy(), shell.closed.Load()) && !updatepresent.ShowProgress(shell.snapshot.Phase))
+		button.SetSensitive(updatepresent.CanStartOperation(shell.Busy(), shell.closed.Load()) && !updatepresent.ShowProgress(shell.snapshot.Phase) && !shell.restartInFlight.Load())
 		shell.updateButtons.connect(button, func(gtk.Button) { shell.startToolRefresh() })
 		r.row.AddSuffix(&button.Widget)
 		r.buttons = append(r.buttons, button)
@@ -55,7 +55,7 @@ func newSourceRow(state updateflow.SourceState, group *adw.PreferencesGroup, she
 		button.SetValign(gtk.AlignCenterValue)
 		button.SetTooltipText("Restart to finish installing the staged update")
 		button.SetVisible(state.RestartRequired)
-		button.SetSensitive(updatepresent.CanStartOperation(shell.Busy(), shell.closed.Load()) && !updatepresent.ShowProgress(shell.snapshot.Phase))
+		button.SetSensitive(updatepresent.CanStartOperation(shell.Busy(), shell.closed.Load()) && !updatepresent.ShowProgress(shell.snapshot.Phase) && !shell.restartInFlight.Load())
 		shell.updateButtons.connect(button, func(gtk.Button) { shell.StartRestart() })
 		r.row.AddSuffix(&button.Widget)
 		r.restartButton = button
@@ -83,7 +83,7 @@ func newSourceRow(state updateflow.SourceState, group *adw.PreferencesGroup, she
 	return r
 }
 
-func (r *sourceRow) render(state updateflow.SourceState, sensitive bool) {
+func (r *sourceRow) render(state updateflow.SourceState, sensitive bool, restartInFlight bool) {
 	title, subtitle := updatepresent.Source(state)
 	r.row.SetTitle(title)
 	r.row.SetSubtitle(subtitle)
@@ -100,6 +100,9 @@ func (r *sourceRow) render(state updateflow.SourceState, sensitive bool) {
 		}
 	}
 	r.setSensitive(sensitive)
+	if r.restartButton != nil && restartInFlight {
+		r.restartButton.SetSensitive(false)
+	}
 }
 
 func (r *sourceRow) setSensitive(sensitive bool) {
