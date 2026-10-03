@@ -379,7 +379,11 @@ func (s *UpdateShell) StartRestart() {
 		if !ublue.StatusCached().Supports(ubluehelper.CommandRestart) {
 			sgtk.RunOnMainThread(func() {
 				s.restartInFlight.Store(false)
-				s.setRestartButtonSensitive(true)
+				// Re-run the row render so the restart suffix honours the
+				// current Busy()/ShowProgress gates instead of being
+				// unconditionally re-enabled while a check or mutation
+				// is still in flight (#446 review).
+				s.renderSources(s.snapshot.Sources)
 				if s.toasts != nil {
 					s.toasts.ShowToast("Restart your computer to finish the update")
 				}
@@ -391,7 +395,11 @@ func (s *UpdateShell) StartRestart() {
 
 		sgtk.RunOnMainThread(func() {
 			s.restartInFlight.Store(false)
-			s.setRestartButtonSensitive(true)
+			// Same gating concern as the no-restart-command fallback
+			// above: re-route through renderSources so a failing restart
+			// while a check is running cannot re-enable a second press
+			// before the next snapshot's render() (#446 review).
+			s.renderSources(s.snapshot.Sources)
 			if s.toasts == nil {
 				return
 			}
