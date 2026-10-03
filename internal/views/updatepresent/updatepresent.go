@@ -165,13 +165,15 @@ func CanStartOperation(busy, closed bool) bool {
 	return !busy && !closed
 }
 
-// PrimaryActionEnabled reports whether the primary action button (the restart
-// button when a staged update is waiting) should be sensitive. The action
-// must be shown, the shell must not be busy or closed, and no privileged
-// action may already be in flight: StartRestart disables the button to block a
-// second pkexec prompt, but every Render recomputes this from the shell state,
-// so a snapshot arriving while the restart goroutine runs would re-enable it
-// unless the in-flight window is part of the decision (issue #447).
+// PrimaryActionEnabled reports whether the primary action button (the
+// stage-or-restart control above the row, except where the staged restart
+// has moved to the Operating system row since #439) should be sensitive.
+// The action must be shown, the shell must not be busy or closed, and no
+// privileged action may already be in flight: StartRestart disables the
+// button to block a second pkexec prompt, but every Render recomputes this
+// from the shell state, so a snapshot arriving while the restart goroutine
+// runs would re-enable it unless the in-flight window is part of the
+// decision (issue #447).
 func PrimaryActionEnabled(showAction, busy, closed, restartInFlight bool) bool {
 	return showAction && CanStartOperation(busy, closed) && !restartInFlight
 }

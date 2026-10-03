@@ -274,8 +274,18 @@ func (s *UpdateShell) finishMutation() {
 	s.renderPrimaryAction(updatepresent.Snapshot(s.snapshot))
 	s.refresh.SetSensitive(true)
 	s.renderProgress(s.snapshot)
+	// restartInFlight must override the per-row sensitivity flip below:
+	// setSensitive iterates every suffix (including the new Restart now
+	// button added in #439) and would otherwise re-enable a second restart
+	// while the privileged action is still up. Re-applied here so the
+	// row-owned restart path honours the in-flight guard at every snapshot
+	// boundary, not just at the render() call site (#446 review).
+	restartInFlight := s.restartInFlight.Load()
 	for _, row := range s.sourceRows {
 		row.setSensitive(!updatepresent.ShowProgress(s.snapshot.Phase))
+		if restartInFlight {
+			row.setRestartButtonSensitive(false)
+		}
 	}
 }
 
