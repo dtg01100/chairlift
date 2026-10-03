@@ -267,3 +267,19 @@ Assert that opening the page and toggling in dry-run never execute `enable` or
 `disable`; keep real command failure and UUID allowlist tests in the pure-Go
 provider. A successful CLI exit alone is not proof of changed GNOME state, so
 production handlers must reload and compare before confirming the switch.
+
+## Empty status panels and announcements
+
+For compact layouts, hide an empty `AdwStatusPage`; clearing its strings
+leaves internal padding in the allocation. Keep visibility decisions in the
+pure presenter and retain panels with an action or active progress. Emit
+phase announcements from a widget that stays mapped, such as the shell's
+toast overlay, rather than the panel being hidden.
+
+A staged-deployment fixture needs both a fake `bootc status` with a non-null
+staged entry and the fixed stage-helper marker. The Dakota AT-SPI container
+binds `/usr/bin/false` at `/usr/libexec/bootc-update-stage` for detection only;
+the suite remains in `--dry-run`. Its masked `/proc/cmdline` ensures the
+fake `bootc` is used rather than reading the host's composefs deployment.
+Verify the staged state and the return to a visible pending-update panel;
+an unstaged screenshot or a string-search test cannot prove either layout.

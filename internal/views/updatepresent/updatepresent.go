@@ -30,6 +30,12 @@ func (p Presentation) Announce() string {
 	return p.Title
 }
 
+// ShowStatus keeps active status controls visible but collapses an empty panel.
+// Announcements and banners do not need the status page to occupy space.
+func (p Presentation) ShowStatus(phase updateflow.Phase) bool {
+	return p.Title != "" || p.Description != "" || p.ShowAction || ShowProgress(phase)
+}
+
 // Snapshot maps one coordinator snapshot to aggregate widget text and action
 // metadata.
 func Snapshot(state updateflow.Snapshot) Presentation {

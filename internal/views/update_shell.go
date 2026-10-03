@@ -471,6 +471,7 @@ func (s *UpdateShell) Render(snapshot updateflow.Snapshot) {
 	presentation := updatepresent.Snapshot(snapshot)
 	s.statusPage.SetTitle(presentation.Title)
 	s.statusPage.SetDescription(presentation.Description)
+	s.statusPage.SetVisible(presentation.ShowStatus(snapshot.Phase))
 	s.renderPrimaryAction(presentation)
 	s.renderProgress(snapshot)
 	if s.refresh != nil {
@@ -489,7 +490,7 @@ func (s *UpdateShell) Render(snapshot updateflow.Snapshot) {
 		s.toasts.SetUpdateBadge(snapshot.TotalUpdates)
 	}
 	if !s.havePhase || s.lastPhase != snapshot.Phase {
-		s.statusPage.Announce(presentation.Announce(), gtk.AccessibleAnnouncementPriorityMediumValue)
+		s.toastOverlay.Announce(presentation.Announce(), gtk.AccessibleAnnouncementPriorityMediumValue)
 		s.lastPhase = snapshot.Phase
 		s.havePhase = true
 	}
@@ -529,8 +530,8 @@ func (s *UpdateShell) build() {
 	header.PackEnd(&menuButton.Widget)
 	s.toolbarView.AddTopBar(&header.Widget)
 
-	content := gtk.NewBox(gtk.OrientationVerticalValue, 24)
-	content.SetMarginTop(24)
+	content := gtk.NewBox(gtk.OrientationVerticalValue, 12)
+	content.SetMarginTop(12)
 	content.SetMarginBottom(24)
 	content.SetMarginStart(12)
 	content.SetMarginEnd(12)

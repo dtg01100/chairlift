@@ -3,9 +3,9 @@ Feature: Updates
   The Updates destination has one status and primary action, with visible
   updates grouped by system consequences and apps/tools. Flatpak and Homebrew
   are faked (fixtures/stubs_updates.py) so every source reports a known state.
-  The capability set omits bootc-stage so the Operating system source is
-  floored identically on every host; its staging path needs the fixed
-  /usr/libexec/bootc-update-stage, which a hosted runner cannot provide.
+  Most scenarios omit bootc-stage to keep the Operating system source unavailable.
+  Staged-deployment scenarios enable it explicitly; the isolated container supplies
+  an inert stage-helper marker and all mutations remain behind --dry-run.
 
   @stub.updates-flatpak-one-update @stub.updates-brew-current
   Scenario: A pending Flatpak update is summarised per source
@@ -32,6 +32,23 @@ Feature: Updates
     And the "Developer tools" row says "Up to date"
     And the Updates sidebar row shows no badge
     And the action journal is empty
+
+  @env.CHAIRLIFT_CAPABILITIES=image-descriptor,flatpak,brew,podman,bootc-stage
+  @stub.updates-bootc-staged @stub.updates-flatpak-current @stub.updates-brew-current
+  Scenario: A staged deployment keeps restart in its row without an empty status panel
+    Given ChairLift is running
+    Then the "Operating system" row says "Deployment staged"
+    And the "Restart now" button in the "Operating system" row is sensitive
+    And the Updates page offers no primary action
+    And I do not see "Restart required"
+    And I do not see "Restart to finish installing updates."
+    And the Updates progress bar is hidden
+    When Flatpak now offers an update for Firefox
+    And I click the "Refresh" button
+    Then the Updates status reads "Updates available"
+    And the Updates page offers only the "Update all" action
+    And the "Operating system" row says "Deployment staged"
+    And the "Restart now" button in the "Operating system" row is sensitive
 
   @stub.updates-flatpak-slow-check @stub.updates-brew-current
   Scenario: The shell reports the check while it runs, then its result

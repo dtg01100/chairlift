@@ -482,3 +482,50 @@ func TestAnnouncePrefersTitleWhenThePanelHasOne(t *testing.T) {
 		t.Fatalf("Announce() = %q, want the explicit announcement", got)
 	}
 }
+
+func TestStatusPanelKeepsVisibleContent(t *testing.T) {
+	tests := []struct {
+		name         string
+		presentation Presentation
+		phase        updateflow.Phase
+		want         bool
+	}{
+		{name: "empty panel", phase: updateflow.PhaseReady},
+		{name: "announcement only", presentation: Presentation{Announcement: "Deployment staged"}, phase: updateflow.PhaseRestartRequired},
+		{name: "banner outside panel", presentation: Presentation{Banner: "Check failed"}, phase: updateflow.PhaseCheckFailed},
+		{name: "title", presentation: Presentation{Title: "Updates available"}, phase: updateflow.PhaseReady, want: true},
+		{name: "description", presentation: Presentation{Description: "Permission denied"}, phase: updateflow.PhaseCheckFailed, want: true},
+		{name: "action", presentation: Presentation{ShowAction: true}, phase: updateflow.PhaseReady, want: true},
+		{name: "checking progress", phase: updateflow.PhaseChecking, want: true},
+		{name: "installing progress", phase: updateflow.PhaseUpdating, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.presentation.ShowStatus(tt.phase); got != tt.want {
+				t.Fatalf("ShowStatus(%v) = %t, want %t", tt.phase, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestStatusPanelReturnsAfterStagedDeployment(t *testing.T) {
+	for _, phase := range []updateflow.Phase{
+		updateflow.PhaseIdle,
+		updateflow.PhaseChecking,
+		updateflow.PhaseReady,
+		updateflow.PhaseCheckFailed,
+		updateflow.PhaseUpdating,
+		updateflow.PhasePartialFailure,
+	} {
+		staged := Snapshot(updateflow.Snapshot{Phase: updateflow.PhaseRestartRequired})
+		if staged.ShowStatus(updateflow.PhaseRestartRequired) {
+			t.Fatal("staged deployment leaves an empty status panel visible")
+		}
+		if staged.Announce() != "Deployment staged" {
+			t.Fatal("collapsing the staged panel drops the restart announcement")
+		}
+		if !Snapshot(updateflow.Snapshot{Phase: phase}).ShowStatus(phase) {
+			t.Fatalf("phase %v stays hidden after leaving the staged state", phase)
+		}
+	}
+}

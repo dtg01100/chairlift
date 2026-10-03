@@ -12,6 +12,7 @@ to arrive: ChairLift runs with --dry-run and gates them before exec. The fakes
 exit 0 for them anyway and only record the call.
 """
 
+import copy
 import json
 import os
 
@@ -203,6 +204,18 @@ esac
 exit 1
 """,
     )
+
+
+@stub("updates-bootc-staged")
+def bootc_staged(context):
+    """A deployment awaiting restart, with no newer image to download."""
+    bootc_booted(context)
+    status = copy.deepcopy(BOOTC_STATUS)
+    staged = copy.deepcopy(status["status"]["booted"])
+    staged["image"]["version"] = "42.20261002.0"
+    staged["image"]["imageDigest"] = "sha256:" + "a" * 64
+    status["status"]["staged"] = staged
+    write_state(context, "bootc-status.json", json.dumps(status))
 
 
 @stub("updates-image-dakota-stable")

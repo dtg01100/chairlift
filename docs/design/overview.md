@@ -1472,8 +1472,12 @@ Restart is the run's only privileged surface of its own. `PhaseRestartRequired`
 is reached only when a source reports that a restart is required — the OS
 provider reads it from `bootc status`'s staged deployment, because the stage
 script is idempotent and exits 0 on an already-current system — and the
-status panel clears its title, description, banner, and primary button so
-the wordmark leads straight into the "System updates" group. The Operating
+status panel clears its title, description, banner, and primary button.
+`Presentation.ShowStatus` then hides the empty `AdwStatusPage` entirely:
+clearing text alone retains its internal padding. The shell uses 12px
+content spacing and a 12px top margin, with phase announcements sent from
+the visible toast overlay so hiding the panel does not silence a staged
+deployment. The wordmark leads straight into "System updates". The Operating
 system row carries the message instead: its subtitle reads "Deployment
 staged" and a "Restart now" suffix calls `UpdateShell.StartRestart`, which
 sends `ublue.Restart` through the `chairlift-helper` `restart` subcommand.

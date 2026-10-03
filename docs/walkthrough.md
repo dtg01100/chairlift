@@ -28,14 +28,17 @@ this computer are skipped. The ordinary page controls perform every action;
 
 ![Updates](screenshots/1-updates.png)
 
-The page leads with where you stand: **System is up to date**, or how many
-updates are waiting. Below that, **Update sources** lists the four things
-that can be updated — Applications, Developer tools, System components, and
-Operating system — each with its own state, so you can see which one is
-holding you up without opening anything. A source your administrator turned
-off says **Disabled by administrator**; one this computer has no software for
-says **Not available on this system** instead, so you can tell a choice from
-a missing tool.
+The Bluefin wordmark leads the page. **System updates** groups System
+components and Operating system; **Apps and tools** groups Applications and
+Developer tools. Each row shows its own state, so you can see which source
+is holding you up without opening anything. A source your administrator
+turned off says **Disabled by administrator**; one this computer has no
+software for says **Not available on this system** instead.
+
+Normally the page also reports **System is up to date**, or how many updates
+are waiting. When only a restart remains, that status panel disappears
+entirely, including its padding: the wordmark is followed directly by
+**System updates**, as shown above.
 
 One button covers all of them. It reads **Check again** when nothing is
 pending, **Update all** when something is, and **Retry failed** if a source
