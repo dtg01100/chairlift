@@ -305,6 +305,11 @@ func (s *stageProgressSink) flush() {
 
 	for _, line := range batch.Lines {
 		msgRow := adw.NewActionRow()
+		// line.Text is streamed stage/llmman output, i.e. untrusted command
+		// output; AdwActionRow parses its title as Pango markup by default, so
+		// a '<' or '&' in that text would garble or drop the row with a
+		// GTK warning. SetUseMarkup(false) renders it literally.
+		msgRow.SetUseMarkup(false)
 		msgRow.SetTitle(line.Text)
 		msgRow.SetSubtitle(line.At.Format("15:04:05"))
 		s.logExpander.AddRow(&msgRow.Widget)
@@ -344,6 +349,11 @@ func (uh *UserHome) onBootcStageClicked() {
 	// Activity row with a spinner (the stage script emits no percentages,
 	// so progress is indeterminate).
 	activityRow := adw.NewActionRow()
+	// flush() sets this row's subtitle from the last streamed stage/llmman
+	// line, i.e. untrusted command output; AdwActionRow parses a subtitle as
+	// Pango markup unless use-markup is FALSE, so a '<' or '&' would garble
+	// the row with a GTK warning (issue #435).
+	activityRow.SetUseMarkup(false)
 	activityRow.SetTitle("Progress")
 	activityRow.SetSubtitle("Working…")
 	spinner := gtk.NewSpinner()
